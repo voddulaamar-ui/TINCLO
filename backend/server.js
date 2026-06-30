@@ -147,7 +147,7 @@ mongoose.connect(process.env.MONGODB_URI)
     console.error('API server is still running. Database routes will return 503 until Atlas is reachable.');
   });
 
-httpServer.listen(PORT, () => {
-  console.log(`TINCLO Server running on http://localhost:${PORT}`);
+httpServer.listen(PORT, '0.0.0.0', () => {
+  console.log(`TINCLO Server running on port ${PORT}`);
   console.log('Socket.io enabled for real-time notifications');
 });
