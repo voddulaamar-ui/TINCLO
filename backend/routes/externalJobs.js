@@ -1,5 +1,6 @@
 import express from 'express';
 import fetch from 'node-fetch';
+import Job from '../models/Job.js';
 
 const router = express.Router();
 
@@ -7,7 +8,7 @@ router.get('/', async (req, res) => {
   const { query = 'software developer', location = 'India', page = 1, num_pages = 1 } = req.query;
   const apiKey = process.env.JSEARCH_API_KEY;
 
-  if (!apiKey) return res.json(getMockJobs());
+  if (!apiKey) return res.json(await persistJobs(getMockJobs()));
 
   try {
     const url = `https://jsearch.p.rapidapi.com/search?query=${encodeURIComponent(query + ' in ' + location)}&page=${page}&num_pages=${num_pages}&date_posted=all`;
@@ -40,12 +41,63 @@ router.get('/', async (req, res) => {
         job.job_employment_type || 'Full-time',
       ].filter(Boolean),
     }));
-    res.json({ jobs, total: jobs.length, source: 'jsearch' });
+    res.json(await persistJobs({ jobs, total: jobs.length, source: 'jsearch' }));
   } catch (error) {
     console.error('JSearch API error:', error.message);
-    res.json(getMockJobs());
+    res.json(await persistJobs(getMockJobs()));
   }
 });
+
+const SOURCE_ALIASES = [
+  ['naukri', 'Naukri'],
+  ['linkedin', 'LinkedIn'],
+  ['indeed', 'Indeed'],
+  ['glassdoor', 'Glassdoor'],
+];
+
+function normalizeSource(source = '') {
+  const normalized = source.toString().toLowerCase();
+  return SOURCE_ALIASES.find(([needle]) => normalized.includes(needle))?.[1] || 'External';
+}
+
+async function persistJobs(payload) {
+  try {
+    const jobs = await Promise.all((payload.jobs || []).map(async (job) => {
+    const externalId = job._id?.toString()
+      || [job.source, job.company, job.title, job.applyUrl].filter(Boolean).join('|').toLowerCase();
+    const update = {
+      externalId,
+      title: job.title || 'Untitled Job',
+      company: job.company || 'Unknown Company',
+      description: job.description || 'No description available.',
+      salary: job.salary || 'Salary not disclosed',
+      location: job.location || 'India',
+      source: normalizeSource(job.source),
+      experience: job.experience || '',
+      jobType: job.jobType || 'Full-time',
+      companyLogo: job.companyLogo || null,
+      isExternal: true,
+      applyUrl: job.applyUrl || null,
+      requirements: job.requirements || [],
+      tags: job.tags || [],
+    };
+
+    const saved = await Job.findOneAndUpdate(
+      { externalId },
+      { $set: update },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    ).lean();
+
+    return saved;
+  }));
+
+    return { ...payload, jobs, total: jobs.length };
+  } catch (error) {
+    // If MongoDB is unavailable, return the jobs without persisting
+    console.warn('Could not persist jobs to DB:', error.message);
+    return payload;
+  }
+}
 
 function getMockJobs() {
   return {
