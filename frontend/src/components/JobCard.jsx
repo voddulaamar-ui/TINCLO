@@ -3,6 +3,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import ApiService from '../services/ApiService';
 import SharedApplyModal from './ApplyModal';
+import { getJobBadge, timeAgo } from '../hooks/useJobAge';
 
 const SOURCE_COLORS = {
   'Naukri':    { bg: '#ff6b35', text: '#fff' },
@@ -11,6 +12,11 @@ const SOURCE_COLORS = {
   'Glassdoor': { bg: '#0caa41', text: '#fff' },
   'External':  { bg: '#764ba2', text: '#fff' },
   'mock':      { bg: '#667eea', text: '#fff' },
+};
+const BADGE_STYLES = {
+  green:  { bg: '#c6f6d5', text: '#22543d', border: '#9ae6b4' },
+  blue:   { bg: '#bee3f8', text: '#2a4365', border: '#90cdf4' },
+  purple: { bg: '#e9d8fd', text: '#44337a', border: '#d6bcfa' },
 };
 
 // ── Apply Modal ──────────────────────────────────────────────────────────────
@@ -208,7 +214,7 @@ const ApplyModal = ({ job, onClose, currentUser }) => {
 const SWIPE_THRESHOLD = 100; // px needed to trigger swipe action
 const SWIPE_ANGLE_LIMIT = 30; // max rotation degrees
 
-export const JobCard = ({ job, onLike, onDislike, currentUser }) => {
+export const JobCard = ({ job, onLike, onDislike, currentUser, isNewSinceVisit = false }) => {
   const [showApplyModal, setShowApplyModal] = useState(false);
   const [showFullDesc, setShowFullDesc] = useState(false);
   const [swipeDir, setSwipeDir] = useState(null); // 'left' | 'right' | null
@@ -222,6 +228,11 @@ export const JobCard = ({ job, onLike, onDislike, currentUser }) => {
 
   const shortDesc = job.description?.slice(0, 120);
   const hasMore = job.description?.length > 120;
+
+  // ── Freshness ──────────────────────────────────────────────────────────────
+  const badge        = getJobBadge(job);
+  const postedLabel  = timeAgo(job.createdAt || job.postedAt);
+  const badgeStyle   = badge ? BADGE_STYLES[badge.color] : null;
 
   // ── Drag start ──
   const onDragStart = useCallback((clientX, clientY) => {
@@ -309,12 +320,15 @@ export const JobCard = ({ job, onLike, onDislike, currentUser }) => {
       {/* job-card swipeable: relative, gradient bg, rounded-3xl, shadow, p-8, max-w, mx-auto, border, overflow-hidden, will-change-transform, touch-action-pan-y, animate-slide-up */}
       <div
         ref={cardRef}
-        className="relative rounded-3xl p-5 max-w-[600px] w-full mx-auto border border-white/80 overflow-hidden will-change-transform touch-pan-y animate-slide-up"
+        className="relative rounded-3xl p-5 max-w-[600px] w-full mx-auto overflow-hidden will-change-transform touch-pan-y animate-slide-up"
         data-testid="job-card"
         style={{
           ...cardStyle,
           background: 'linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%)',
-          boxShadow: '0 10px 40px rgba(0,0,0,0.1), 0 2px 8px rgba(0,0,0,0.06)',
+          boxShadow: isNewSinceVisit
+            ? '0 10px 40px rgba(251,191,36,0.35), 0 2px 8px rgba(0,0,0,0.06)'
+            : '0 10px 40px rgba(0,0,0,0.1), 0 2px 8px rgba(0,0,0,0.06)',
+          border: isNewSinceVisit ? '2px solid #fbbf24' : '1px solid rgba(255,255,255,0.8)',
         }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
@@ -377,6 +391,21 @@ export const JobCard = ({ job, onLike, onDislike, currentUser }) => {
 
           {/* job-header-right: flex flex-col items-end gap-1.5 */}
           <div className="flex flex-col items-end gap-1.5">
+            {/* New badge */}
+            {badge && badgeStyle && (
+              <span
+                className="px-2.5 py-[4px] rounded-[20px] text-[11px] font-extrabold tracking-[0.3px] whitespace-nowrap border"
+                style={{ background: badgeStyle.bg, color: badgeStyle.text, borderColor: badgeStyle.border }}
+              >
+                🆕 {badge.label}
+              </span>
+            )}
+            {/* New-since-visit indicator */}
+            {isNewSinceVisit && (
+              <span className="px-2.5 py-[4px] rounded-[20px] text-[11px] font-extrabold text-amber-800 border border-amber-300" style={{ background: '#fef3c7' }}>
+                ⭐ New for you
+              </span>
+            )}
             {job.source && (
               /* job-source-badge: inline pill with dynamic bg/color */
               <span
@@ -386,6 +415,8 @@ export const JobCard = ({ job, onLike, onDislike, currentUser }) => {
                 via {job.source === 'mock' ? 'Naukri' : job.source}
               </span>
             )}
+            {/* Posted timestamp */}
+            <span className="text-[11px] text-gray-400 font-medium">🕐 {postedLabel}</span>
           </div>
         </div>
 

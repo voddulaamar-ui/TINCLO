@@ -61,6 +61,38 @@ const SocketService = {
       socket.off('notification:receive');
     }
   },
+
+  /**
+   * Listen for new jobs pushed from the backend.
+   * Callback receives: { jobs: Job[], newCount: number, query?: string }
+   */
+  onNewJobs(callback) {
+    if (socket) {
+      socket.on('jobs:new', callback);
+    }
+  },
+
+  offNewJobs() {
+    if (socket) {
+      socket.off('jobs:new');
+    }
+  },
+
+  /**
+   * Subscribe to a preferences-matched notification.
+   * Callback receives: { title, message, matchedJobs: Job[] }
+   */
+  onJobMatch(callback) {
+    if (socket) {
+      socket.on('jobs:match', callback);
+    }
+  },
+
+  offJobMatch() {
+    if (socket) {
+      socket.off('jobs:match');
+    }
+  },
 };
 
 export default SocketService;

@@ -114,8 +114,28 @@ export const App = () => {
         }
       });
 
+      // Listen for new-job match notifications pushed from the backend
+      SocketService.onJobMatch((payload) => {
+        try {
+          const stored = JSON.parse(localStorage.getItem('tinclo_notifications') || '[]');
+          const newNotif = {
+            id: Date.now(),
+            type: 'new_jobs',
+            title: payload.title || '💼 New Jobs Available!',
+            message: payload.message || 'New job listings have been posted.',
+            time: 'Just now',
+            read: false,
+            icon: payload.icon || '💼',
+          };
+          localStorage.setItem('tinclo_notifications', JSON.stringify([newNotif, ...stored]));
+        } catch (e) {
+          console.warn('Failed to store job-match notification:', e);
+        }
+      });
+
       return () => {
         SocketService.offNotification();
+        SocketService.offJobMatch();
       };
     }
   }, [currentUser]);
