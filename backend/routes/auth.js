@@ -2,6 +2,7 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -108,7 +109,7 @@ router.post('/login', async (req, res) => {
 });
 
 // POST /api/auth/change-password
-router.post('/change-password', async (req, res) => {
+router.post('/change-password', authenticateToken, async (req, res) => {
   const { email, currentPassword, newPassword } = req.body;
 
   if (!email || !currentPassword || !newPassword)
@@ -147,7 +148,7 @@ router.post('/change-password', async (req, res) => {
 });
 
 // PUT /api/auth/update-profile
-router.put('/update-profile', async (req, res) => {
+router.put('/update-profile', authenticateToken, async (req, res) => {
   const { email, name, phone, location, bio } = req.body;
 
   if (!email) return res.status(400).json({ message: 'Email is required.' });

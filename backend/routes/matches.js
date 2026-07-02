@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import Match from '../models/Match.js';
 import Job from '../models/Job.js';
 import User from '../models/User.js';
@@ -19,25 +20,37 @@ router.get('/user/:userId', async (req, res) => {
 
 // POST create new match (like a job)
 router.post('/', async (req, res) => {
-  // NOTE: User validation temporarily disabled due to SQL interface (read-only) limitations
-  // In production with standard MongoDB connection, uncomment the validation below:
-  
-  // try {
-  //   const user = await User.findOne({ userId: req.body.userId });
-  //   if (!user) {
-  //     return res.status(400).json({ message: 'User not found. Please create user first.' });
-  //   }
-  // } catch (error) {
-  //   return res.status(500).json({ message: 'Error validating user: ' + error.message });
-  // }
+  const { userId, jobId } = req.body;
 
-  const match = new Match({
-    userId: req.body.userId,
-    jobId: req.body.jobId,
-    applied: false
-  });
+  if (!userId || !jobId) {
+    return res.status(400).json({ message: 'userId and jobId are required' });
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(jobId)) {
+    return res.status(400).json({ message: 'Invalid jobId. Jobs must be saved in MongoDB before matching.' });
+  }
+
 
   try {
+    const [user, job] = await Promise.all([
+      User.findOne({ userId }),
+      Job.findById(jobId),
+    ]);
+
+    if (!user) {
+      return res.status(400).json({ message: 'User not found. Please register or login first.' });
+    }
+
+    if (!job) {
+      return res.status(404).json({ message: 'Job not found' });
+    }
+
+    const match = new Match({
+      userId,
+      jobId,
+      applied: false
+    });
+
     const newMatch = await match.save();
     const populatedMatch = await Match.findById(newMatch._id).populate('jobId');
     res.status(201).json(populatedMatch);

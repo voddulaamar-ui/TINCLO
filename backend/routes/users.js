@@ -2,6 +2,8 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
 import Match from '../models/Match.js';
+import Job from '../models/Job.js';
+import JobView from '../models/JobView.js';
 
 const router = express.Router();
 
@@ -47,19 +49,25 @@ router.get('/', async (req, res) => {
 // GET /api/users/data — Full database summary (admin fallback)
 router.get('/data', async (req, res) => {
   try {
-    const [users, matches] = await Promise.all([
+    const [users, matches, jobs, jobViews] = await Promise.all([
       User.find().sort({ createdAt: -1 }).select('-password'),
-      Match.find().populate('jobId').sort({ matchedAt: -1 })
+      Match.find().populate('jobId').sort({ matchedAt: -1 }),
+      Job.find().sort({ createdAt: -1 }),
+      JobView.find().populate('jobId').sort({ viewedAt: -1 })
     ]);
 
     res.json({
       summary: {
         totalUsers: users.length,
         totalMatches: matches.length,
-        appliedMatches: matches.filter(m => m.applied).length
+        appliedMatches: matches.filter(m => m.applied).length,
+        totalJobs: jobs.length,
+        totalJobViews: jobViews.length
       },
       users,
-      matches
+      matches,
+      jobs,
+      jobViews
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

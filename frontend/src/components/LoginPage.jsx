@@ -61,14 +61,10 @@ const LoginPage = () => {
     if (!resetEmail) { setResetError("Please enter your email address."); return; }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(resetEmail)) { setResetError("Please enter a valid email address."); return; }
-    const existingUsers = JSON.parse(localStorage.getItem('tinclo_users') || '[]');
-    const user = existingUsers.find(u => u.email === resetEmail.toLowerCase().trim());
-    if (!user) { setResetError("No account found with this email address."); return; }
-    // Show a masked hint (first 2 chars + *** + last char) — never expose full password
-    const p = user.password || '';
-    const hint = p.length > 3 ? p.slice(0, 2) + '*'.repeat(Math.max(p.length - 3, 3)) + p.slice(-1) : '****';
-    setResetSuccess(`Password hint: ${hint} — If you've forgotten it, please create a new account or contact support.`);
-    setTimeout(() => { setShowForgotPassword(false); setResetEmail(""); setResetSuccess(""); }, 6000);
+    // Show a generic success message regardless of whether the account exists
+    // This prevents email enumeration attacks and avoids exposing password data
+    setResetSuccess("If an account exists with this email, you will receive password reset instructions. Please check your inbox or contact support.");
+    setTimeout(() => { setShowForgotPassword(false); setResetEmail(""); setResetSuccess(""); }, 5000);
   };
 
   const closeForgotPasswordModal = () => {
@@ -167,14 +163,14 @@ const LoginPage = () => {
                 {resetError && <div className="px-4 py-3.5 bg-red-100 text-red-500 rounded-lg text-sm border-l-4 border-red-400">{resetError}</div>}
                 {resetSuccess && (
                   <div className="px-4 py-3.5 bg-green-100 text-green-600 rounded-lg text-sm border-l-4 border-green-400 mb-4">
-                    <strong>Password Found!</strong><br />{resetSuccess}<br />
+                    {resetSuccess}<br />
                     <small className="opacity-80">This modal will close in 5 seconds...</small>
                   </div>
                 )}
                 <button type="submit"
                   className="w-full py-4 text-base font-semibold text-white rounded-lg flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_25px_rgba(102,126,234,0.4)]"
                   style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-                  Retrieve Password
+                  Reset Password
                 </button>
               </form>
             </div>

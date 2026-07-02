@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import ApiService from '../services/ApiService';
+import SharedApplyModal from './ApplyModal';
 
 const SOURCE_CONFIG = {
   'Naukri':    { color: '#ff6b35', label: 'Naukri' },
@@ -421,14 +422,13 @@ export const MatchesView = ({ matches, onApply, onUndoApply, onNavigateToBrowser
 
       {/* In-app Apply Modal */}
       {applyJob && (
-        <ApplyModal
+        <SharedApplyModal
           job={applyJob}
           currentUser={currentUser}
           onClose={() => setApplyJob(null)}
           onApply={(jobId) => {
             const match = matches.find(m => (m.job.id || m.job._id) === jobId);
             if (match) onApply(match.id);
-            setApplyJob(null);
           }}
         />
       )}

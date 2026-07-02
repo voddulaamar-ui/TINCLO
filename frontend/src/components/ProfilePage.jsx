@@ -25,11 +25,30 @@ const ProfilePage = () => {
     const user = JSON.parse(localStorage.getItem('tinclo_current_user') || 'null');
     if (!user) { navigate('/login'); return; }
     setCurrentUser(user);
-    const users = JSON.parse(localStorage.getItem('tinclo_users') || '[]');
-    const full = users.find(u => u.id === user.id);
-    if (full) {
-      setDetails({ name: full.name || '', email: full.email || '', phone: full.phone || '', location: full.location || '', bio: full.bio || '' });
-    }
+
+    // Try to load profile from backend first, fallback to localStorage
+    const loadProfile = async () => {
+      try {
+        const apiUser = await ApiService.fetchUser(user.id);
+        setDetails({
+          name: apiUser.name || user.name || '',
+          email: apiUser.email || user.email || '',
+          phone: apiUser.phone || '',
+          location: apiUser.location || '',
+          bio: apiUser.bio || '',
+        });
+      } catch (err) {
+        // Fallback to localStorage
+        const users = JSON.parse(localStorage.getItem('tinclo_users') || '[]');
+        const full = users.find(u => u.id === user.id);
+        if (full) {
+          setDetails({ name: full.name || '', email: full.email || '', phone: full.phone || '', location: full.location || '', bio: full.bio || '' });
+        } else {
+          setDetails({ name: user.name || '', email: user.email || '', phone: '', location: '', bio: '' });
+        }
+      }
+    };
+    loadProfile();
   }, [navigate]);
 
   const handleDetailsChange = (e) => setDetails({ ...details, [e.target.name]: e.target.value });
@@ -137,8 +156,8 @@ const ProfilePage = () => {
               {/* Stats */}
               <div className="flex gap-4 justify-center mb-6 p-4 bg-gray-50 rounded-xl">
                 {[
-                  { num: JSON.parse(localStorage.getItem('tinclo_matches') || '[]').filter(m => m.userId === currentUser.id && m.applied).length, label: 'Applied' },
-                  { num: JSON.parse(localStorage.getItem('tinclo_matches') || '[]').filter(m => m.userId === currentUser.id).length, label: 'Matches' },
+                  { num: (() => { try { const d = JSON.parse(localStorage.getItem('tinclo_matches') || '{}'); const arr = Array.isArray(d) ? d : (d[currentUser.id] || []); return arr.filter(m => m.applied).length; } catch(e){ return 0; } })(), label: 'Applied' },
+                  { num: (() => { try { const d = JSON.parse(localStorage.getItem('tinclo_matches') || '{}'); const arr = Array.isArray(d) ? d : (d[currentUser.id] || []); return arr.length; } catch(e){ return 0; } })(), label: 'Matches' },
                 ].map((s, i) => (
                   <div key={i} className="flex flex-col items-center gap-0.5">
                     <span className="text-[22px] font-extrabold text-indigo-500">{s.num}</span>

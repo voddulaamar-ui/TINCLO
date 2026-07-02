@@ -114,7 +114,7 @@ const FeaturesSection = () => {
                   'focus-visible:outline-[2px] focus-visible:outline-[#4a90e2] focus-visible:outline-offset-[-2px]',
                   isActive
                     ? 'features-tab-active text-white border-b-[#4a90e2] bg-[rgba(74,144,226,0.1)]'
-                    : 'text-[rgba(203,134,134,0.6)] border-b-transparent hover:text-white/90 hover:bg-white/5',
+                    : 'text-[rgba(57, 218, 240, 0)] border-b-transparent hover:text-white/90 hover:bg-white/5',
                   'lg:min-w-[150px] lg:px-5 lg:py-3.5 lg:text-[0.95rem]',
                   'md:min-w-[140px] md:px-4 md:py-3.5 md:text-[0.9rem]',
                 ].join(' ')}

@@ -108,9 +108,15 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
   // Track job view whenever the current job changes
   useEffect(() => {
     if (currentJob) {
-      trackJobView(currentJob._id || currentJob.id);
+      const jobId = currentJob._id || currentJob.id;
+      trackJobView(jobId);
+      if (currentUser?.id && jobId) {
+        ApiService.trackJobView({ userId: currentUser.id, jobId }).catch((error) => {
+          console.warn('Unable to sync job view:', error.message);
+        });
+      }
     }
-  }, [currentJob?._id, currentJob?.id]);
+  }, [currentJob?._id, currentJob?.id, currentUser?.id]);
 
   const handleLike = () => {
     if (currentJob) {
@@ -126,40 +132,40 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
 
   return (
     /* .job-browser */
-    <div className="p-5 max-w-[700px] mx-auto">
+    <div className="h-full max-w-[860px] mx-auto flex flex-col min-h-0">
       {/* Search Bar — .job-search-bar */}
       <div
-        className="rounded-3xl p-6 mb-6 text-white"
+        className="rounded-3xl p-4 mb-3 text-white shrink-0"
         style={{
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           boxShadow: '0 8px 30px rgba(102,126,234,0.4)',
         }}
       >
         {/* .search-form */}
-        <form className="mb-4" onSubmit={handleSearch}>
+        <form className="mb-3" onSubmit={handleSearch}>
           {/* .search-inputs */}
           <div className="flex gap-2.5 flex-wrap">
             {/* .search-input-wrap */}
-            <div className="flex-1 min-w-[160px] flex items-center bg-white/20 border-2 border-white/30 rounded-2xl px-4 gap-2.5 backdrop-blur-md transition-all focus-within:border-white/70 focus-within:bg-white/30">
+            <div className="flex-[1.35_1_300px] min-w-[280px] flex items-center bg-white/20 border-2 border-white/30 rounded-2xl px-4 gap-2.5 backdrop-blur-md transition-all focus-within:border-white/70 focus-within:bg-white/30">
               {/* .search-icon */}
               <span className="text-base shrink-0">🔍</span>
               {/* .search-input */}
               <input
                 type="text"
-                className="flex-1 border-none bg-transparent py-3.5 text-sm text-white outline-none font-medium placeholder:text-white/70"
+                className="w-full min-w-0 border-none bg-transparent py-3.5 text-sm text-white outline-none font-medium placeholder:text-white/70"
                 placeholder="Job title or skills (e.g. React Developer)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
             {/* .search-input-wrap */}
-            <div className="flex-1 min-w-[160px] flex items-center bg-white/20 border-2 border-white/30 rounded-2xl px-4 gap-2.5 backdrop-blur-md transition-all focus-within:border-white/70 focus-within:bg-white/30">
+            <div className="flex-[1_1_220px] min-w-[200px] flex items-center bg-white/20 border-2 border-white/30 rounded-2xl px-4 gap-2.5 backdrop-blur-md transition-all focus-within:border-white/70 focus-within:bg-white/30">
               {/* .search-icon */}
               <span className="text-base shrink-0">📍</span>
               {/* .search-input */}
               <input
                 type="text"
-                className="flex-1 border-none bg-transparent py-3.5 text-sm text-white outline-none font-medium placeholder:text-white/70"
+                className="w-full min-w-0 border-none bg-transparent py-3.5 text-sm text-white outline-none font-medium placeholder:text-white/70"
                 placeholder="Location (e.g. Bengaluru, India)"
                 value={searchLocation}
                 onChange={(e) => setSearchLocation(e.target.value)}
@@ -168,7 +174,7 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
             {/* .search-btn */}
             <button
               type="submit"
-              className="py-3.5 px-6 bg-white text-[#667eea] text-sm font-extrabold border-none rounded-2xl cursor-pointer whitespace-nowrap transition-all ease-in-out shadow-[0_4px_15px_rgba(0,0,0,0.2)] hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(0,0,0,0.25)] disabled:opacity-70 disabled:cursor-not-allowed"
+              className="py-3 px-6 bg-white text-[#667eea] text-sm font-extrabold border-none rounded-2xl cursor-pointer whitespace-nowrap transition-all ease-in-out shadow-[0_4px_15px_rgba(0,0,0,0.2)] hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(0,0,0,0.25)] disabled:opacity-70 disabled:cursor-not-allowed"
               disabled={loading}
             >
               {loading ? '⏳ Loading...' : '🚀 Search Jobs'}
@@ -237,19 +243,21 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
       {!loading && !isComplete && currentJob && (
         <>
           {/* .job-counter */}
-          <div className="text-center text-sm text-[#666] mb-4 font-medium flex items-center justify-center gap-2">
+          <div className="text-center text-sm text-[#666] mb-2 font-medium flex items-center justify-center gap-2 shrink-0">
             Job {effectiveIndex + 1} of {jobs.length}
             {/* .live-badge */}
             {!usingFallback && (
               <span className="text-xs bg-[#e6ffed] text-[#276749] py-0.5 px-2.5 rounded-xl font-semibold">🟢 Live</span>
             )}
           </div>
-          <JobCard
-            job={currentJob}
-            onLike={handleLike}
-            onDislike={handleDislike}
-            currentUser={currentUser}
-          />
+          <div className="min-h-0 flex-1 flex items-start justify-center overflow-hidden">
+            <JobCard
+              job={currentJob}
+              onLike={handleLike}
+              onDislike={handleDislike}
+              currentUser={currentUser}
+            />
+          </div>
         </>
       )}
     </div>

@@ -64,7 +64,7 @@ const LandingPage = () => {
             src="/assets/hero-screenshot.svg"
             alt="TINCLO application interface showing job matching swipe feature and application tracking dashboard"
             className="w-full h-auto aspect-[4/3] object-cover rounded-[20px] border-2 border-[rgba(234,76,19,0.3)] shadow-[0_8px_32px_rgba(0,0,0,0.1)] transition-all hover:scale-105 hover:shadow-[0_12px_48px_rgba(0,0,0,0.2)]"
-            style={{ background: 'rgba(137,12,12,0.777)', backdropFilter: 'blur(20px)' }}
+            style={{ background: 'rgba(219, 201, 171, 0.88)', backdropFilter: 'blur(20px)' }}
             onError={(e) => {
               e.target.onerror = null;
               e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600"%3E%3Crect fill="%23667eea" width="800" height="600"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" fill="%23ffffff"%3EImage Unavailable%3C/text%3E%3C/svg%3E';

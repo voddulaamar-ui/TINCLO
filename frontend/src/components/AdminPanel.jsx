@@ -62,7 +62,11 @@ const AdminPanel = () => {
         } catch (apiErr) { console.warn('Admin API unavailable, using localStorage:', apiErr.message); }
       }
       const storedUsers   = JSON.parse(localStorage.getItem('tinclo_users')   || '[]');
-      const storedMatches = JSON.parse(localStorage.getItem('tinclo_matches') || '[]');
+      const storedMatchesRaw = JSON.parse(localStorage.getItem('tinclo_matches') || '{}');
+      // Support both old array format and new per-user object format
+      const storedMatches = Array.isArray(storedMatchesRaw)
+        ? storedMatchesRaw
+        : Object.values(storedMatchesRaw).flat();
       const storedJobs    = JSON.parse(localStorage.getItem('tinclo_jobs')    || '[]');
       setUsers(storedUsers); setMatches(storedMatches); setJobs(storedJobs);
       setStats({ totalUsers: storedUsers.length, totalMatches: storedMatches.length, appliedMatches: storedMatches.filter(m => m.applied).length, totalJobs: storedJobs.length || 15, conversionRate: storedMatches.length > 0 ? ((storedMatches.filter(m => m.applied).length / storedMatches.length) * 100).toFixed(1) : 0 });

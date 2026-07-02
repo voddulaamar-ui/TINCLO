@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useCallback } from 'react';
 import ApiService from '../services/ApiService';
+import SharedApplyModal from './ApplyModal';
 
 const SOURCE_COLORS = {
   'Naukri':    { bg: '#ff6b35', text: '#fff' },
@@ -219,8 +220,8 @@ export const JobCard = ({ job, onLike, onDislike, currentUser }) => {
   const startPos = useRef({ x: 0, y: 0 });
   const sourceStyle = SOURCE_COLORS[job.source] || SOURCE_COLORS['External'];
 
-  const shortDesc = job.description?.slice(0, 180);
-  const hasMore = job.description?.length > 180;
+  const shortDesc = job.description?.slice(0, 120);
+  const hasMore = job.description?.length > 120;
 
   // ── Drag start ──
   const onDragStart = useCallback((clientX, clientY) => {
@@ -308,7 +309,7 @@ export const JobCard = ({ job, onLike, onDislike, currentUser }) => {
       {/* job-card swipeable: relative, gradient bg, rounded-3xl, shadow, p-8, max-w, mx-auto, border, overflow-hidden, will-change-transform, touch-action-pan-y, animate-slide-up */}
       <div
         ref={cardRef}
-        className="relative rounded-3xl p-8 max-w-[600px] mx-auto border border-white/80 overflow-hidden will-change-transform touch-pan-y animate-slide-up"
+        className="relative rounded-3xl p-5 max-w-[600px] w-full mx-auto border border-white/80 overflow-hidden will-change-transform touch-pan-y animate-slide-up"
         data-testid="job-card"
         style={{
           ...cardStyle,
@@ -345,21 +346,21 @@ export const JobCard = ({ job, onLike, onDislike, currentUser }) => {
           ✕ PASS
         </div>
 
-        {/* job-card-header: flex justify-between items-start mb-6 pb-5 border-b-2 border-gray-100 */}
-        <div className="flex justify-between items-start mb-6 pb-5 border-b-2 border-[#f0f0f5]">
+        {/* job-card-header: flex justify-between items-start mb-4 pb-4 border-b-2 border-gray-100 */}
+        <div className="flex justify-between items-start mb-4 pb-4 border-b-2 border-[#f0f0f5]">
           {/* company-badge: flex items-center gap-4 */}
           <div className="flex items-center gap-4">
             {job.companyLogo ? (
               <img
                 src={job.companyLogo}
                 alt={job.company}
-                className="w-14 h-14 rounded-2xl object-contain bg-[#f8f9ff] border border-gray-200 p-1"
+                className="w-12 h-12 rounded-2xl object-contain bg-[#f8f9ff] border border-gray-200 p-1"
                 onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
               />
             ) : null}
             {/* company-logo: 56x56 gradient circle with initial letter */}
             <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-bold text-white shadow-[0_4px_12px_rgba(102,126,234,0.3)]"
+              className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-bold text-white shadow-[0_4px_12px_rgba(102,126,234,0.3)]"
               style={{
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 display: job.companyLogo ? 'none' : 'flex',
@@ -369,7 +370,7 @@ export const JobCard = ({ job, onLike, onDislike, currentUser }) => {
             </div>
             {/* company-info: flex flex-col gap-1 */}
             <div className="flex flex-col gap-1">
-              <h3 className="text-lg font-bold text-gray-900 m-0">{job.company}</h3>
+              <h3 className="text-base font-bold text-gray-900 m-0">{job.company}</h3>
               <span className="text-[13px] text-gray-500 font-medium">{job.jobType || 'Full-time'}</span>
             </div>
           </div>
@@ -389,29 +390,29 @@ export const JobCard = ({ job, onLike, onDislike, currentUser }) => {
         </div>
 
 
-        {/* job-card-body: mb-7 */}
-        <div className="mb-7">
+        {/* job-card-body: mb-4 */}
+        <div className="mb-4">
           {/* job-title: gradient text, 28px, bold */}
           <h2
-            className="text-[28px] font-bold m-0 mb-5 leading-[1.3] bg-clip-text text-transparent max-sm:text-2xl"
+            className="text-[24px] font-bold m-0 mb-3 leading-[1.25] bg-clip-text text-transparent max-sm:text-2xl"
             style={{ backgroundImage: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
           >
             {job.title}
           </h2>
 
           {/* job-meta: flex gap-6 mb-5 flex-wrap */}
-          <div className="flex gap-6 mb-5 flex-wrap max-sm:gap-3">
+          <div className="flex gap-3 mb-3 flex-wrap max-sm:gap-3">
             {/* job-meta-item: flex items-center gap-2 bg-white px-4 py-2.5 rounded-xl shadow-sm border border-gray-200 */}
-            <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.05)] border border-gray-200 max-sm:px-3 max-sm:py-2">
+            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.05)] border border-gray-200 max-sm:px-3 max-sm:py-2">
               <span className="text-[18px] max-sm:text-base">📍</span>
               <span className="text-[15px] font-semibold text-gray-700 max-sm:text-sm">{job.location}</span>
             </div>
-            <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.05)] border border-gray-200 max-sm:px-3 max-sm:py-2">
+            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.05)] border border-gray-200 max-sm:px-3 max-sm:py-2">
               <span className="text-[18px] max-sm:text-base">💰</span>
               <span className="text-[15px] font-semibold text-gray-700 max-sm:text-sm">{job.salary}</span>
             </div>
             {job.experience && (
-              <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.05)] border border-gray-200 max-sm:px-3 max-sm:py-2">
+              <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.05)] border border-gray-200 max-sm:px-3 max-sm:py-2">
                 <span className="text-base">🧑‍💼</span>
                 <span className="text-[15px] font-semibold text-gray-700 max-sm:text-sm">{job.experience}</span>
               </div>
@@ -419,7 +420,7 @@ export const JobCard = ({ job, onLike, onDislike, currentUser }) => {
           </div>
 
           {/* job-description: mt-5 leading-[1.7] text-gray-600 text-[15px] bg-white p-5 rounded-2xl border border-gray-200 shadow-sm */}
-          <div className="mt-5 leading-[1.7] text-gray-600 text-[15px] bg-white p-5 rounded-2xl border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] max-sm:text-sm max-sm:p-4">
+          <div className="mt-3 leading-[1.55] text-gray-600 text-sm bg-white p-4 rounded-2xl border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] max-sm:text-sm max-sm:p-4">
             <p className="m-0">{showFullDesc ? job.description : shortDesc}{hasMore && !showFullDesc && '...'}</p>
             {hasMore && (
               /* read-more-btn */
@@ -434,7 +435,7 @@ export const JobCard = ({ job, onLike, onDislike, currentUser }) => {
 
           {/* job-requirements */}
           {job.requirements?.length > 0 && (
-            <div className="mt-4">
+            <div className="mt-3">
               {/* requirements-label */}
               <p className="text-[13px] font-bold text-gray-600 m-0 mb-2">🛠 Required Skills:</p>
               {/* requirements-list */}
@@ -454,13 +455,13 @@ export const JobCard = ({ job, onLike, onDislike, currentUser }) => {
           )}
 
           {/* job-tags: flex gap-2.5 mt-5 flex-wrap */}
-          <div className="flex gap-2.5 mt-5 flex-wrap">
+          <div className="flex gap-2 mt-3 flex-wrap">
             {job.tags?.length > 0
               ? job.tags.map((tag, i) => (
                   /* job-tag: indigo/purple gradient pill */
                   <span
                     key={i}
-                    className="px-4 py-2 rounded-[20px] text-[13px] font-semibold border border-indigo-200 text-indigo-600"
+                    className="px-3 py-1.5 rounded-[20px] text-xs font-semibold border border-indigo-200 text-indigo-600"
                     style={{ background: 'linear-gradient(135deg, #e0e7ff 0%, #f3e8ff 100%)' }}
                   >
                     {tag}
@@ -468,8 +469,8 @@ export const JobCard = ({ job, onLike, onDislike, currentUser }) => {
                 ))
               : (
                 <>
-                  <span className="px-4 py-2 rounded-[20px] text-[13px] font-semibold border border-indigo-200 text-indigo-600" style={{ background: 'linear-gradient(135deg, #e0e7ff 0%, #f3e8ff 100%)' }}>Full-time</span>
-                  <span className="px-4 py-2 rounded-[20px] text-[13px] font-semibold border border-indigo-200 text-indigo-600" style={{ background: 'linear-gradient(135deg, #e0e7ff 0%, #f3e8ff 100%)' }}>India</span>
+                  <span className="px-3 py-1.5 rounded-[20px] text-xs font-semibold border border-indigo-200 text-indigo-600" style={{ background: 'linear-gradient(135deg, #e0e7ff 0%, #f3e8ff 100%)' }}>Full-time</span>
+                  <span className="px-3 py-1.5 rounded-[20px] text-xs font-semibold border border-indigo-200 text-indigo-600" style={{ background: 'linear-gradient(135deg, #e0e7ff 0%, #f3e8ff 100%)' }}>India</span>
                 </>
               )
             }
@@ -477,7 +478,7 @@ export const JobCard = ({ job, onLike, onDislike, currentUser }) => {
 
           {/* btn-apply-now: full-width gradient button */}
           <button
-            className="block w-full mt-[18px] px-6 py-3.5 text-white text-[15px] font-bold border-none rounded-[14px] cursor-pointer transition-all duration-[250ms] ease-in-out text-center tracking-[0.3px] shadow-[0_4px_14px_rgba(102,126,234,0.4)] hover:-translate-y-[3px] hover:shadow-[0_8px_20px_rgba(102,126,234,0.5)] active:-translate-y-px focus-visible:outline-[3px] focus-visible:outline-[#667eea] focus-visible:outline-offset-[3px]"
+            className="block w-full mt-3 px-6 py-3 text-white text-sm font-bold border-none rounded-[14px] cursor-pointer transition-all duration-[250ms] ease-in-out text-center tracking-[0.3px] shadow-[0_4px_14px_rgba(102,126,234,0.4)] hover:-translate-y-[3px] hover:shadow-[0_8px_20px_rgba(102,126,234,0.5)] active:-translate-y-px focus-visible:outline-[3px] focus-visible:outline-[#667eea] focus-visible:outline-offset-[3px]"
             style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
             onClick={e => { e.stopPropagation(); setShowApplyModal(true); }}
           >
@@ -486,7 +487,7 @@ export const JobCard = ({ job, onLike, onDislike, currentUser }) => {
         </div>
 
         {/* swipe-hint: flex justify-between pt-3 border-t border-dashed border-gray-200 mt-4 */}
-        <div className="flex justify-between pt-3 border-t border-dashed border-gray-200 mt-4">
+        <div className="flex justify-between pt-2 border-t border-dashed border-gray-200 mt-2">
           {/* swipe-hint-left */}
           <span className="text-[11px] text-red-400 font-medium">← Swipe left to pass</span>
           {/* swipe-hint-right */}
@@ -495,7 +496,7 @@ export const JobCard = ({ job, onLike, onDislike, currentUser }) => {
       </div>
 
       {showApplyModal && (
-        <ApplyModal job={job} currentUser={currentUser} onClose={() => setShowApplyModal(false)} />
+        <SharedApplyModal job={job} currentUser={currentUser} onClose={() => setShowApplyModal(false)} />
       )}
     </>
   );

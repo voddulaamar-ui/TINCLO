@@ -14,9 +14,14 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5002/api'
  */
 async function apiFetch(endpoint, options = {}) {
   try {
+    // Attach JWT token if available
+    const token = localStorage.getItem('tinclo_token');
+    const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders,
         ...options.headers,
       },
       ...options,
@@ -116,10 +121,10 @@ const ApiService = {
   /**
    * Register a new user with full details (saves to MongoDB)
    */
-  async registerUser({ userId, name, email, password }) {
+  async registerUser({ name, email, password }) {
     return await apiFetch('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ userId, name, email, password }),
+      body: JSON.stringify({ name, email, password }),
     });
   },
 
@@ -127,7 +132,7 @@ const ApiService = {
    * Login user via MongoDB
    */
   async loginUser({ email, password }) {
-    return await apiFetch('/users/login', {
+    return await apiFetch('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
@@ -160,17 +165,7 @@ const ApiService = {
    * @throws {Error} - Network or HTTP error
    */
   async ensureUserExists(userId) {
-    try {
-      // Try to fetch user
-      return await this.fetchUser(userId);
-    } catch (error) {
-      // If user not found (404), create it
-      if (error.message.includes('404') || error.message.includes('not found')) {
-        return await this.createUser(userId);
-      }
-      // Re-throw other errors
-      throw error;
-    }
+    return await this.fetchUser(userId);
   },
 
   // Health check
@@ -194,11 +189,18 @@ const ApiService = {
     return await apiFetch(`/external-jobs?${params}`);
   },
 
+  async trackJobView({ userId, jobId }) {
+    return await apiFetch('/job-views', {
+      method: 'POST',
+      body: JSON.stringify({ userId, jobId }),
+    });
+  },
+
   // Job Application — submit in-app and send confirmation email
-  async applyToJob({ name, email, phone, experience, coverLetter, jobTitle, company, location, salary, jobId }) {
+  async applyToJob({ name, email, phone, experience, coverLetter, applicationType, applicationDetails, jobTitle, company, location, salary, jobId }) {
     return await apiFetch('/apply', {
       method: 'POST',
-      body: JSON.stringify({ name, email, phone, experience, coverLetter, jobTitle, company, location, salary, jobId }),
+      body: JSON.stringify({ name, email, phone, experience, coverLetter, applicationType, applicationDetails, jobTitle, company, location, salary, jobId }),
     });
   },
 

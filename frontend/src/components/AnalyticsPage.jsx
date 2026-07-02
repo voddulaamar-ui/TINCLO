@@ -25,8 +25,12 @@ const AnalyticsPage = () => {
   useEffect(() => {
     if (!currentUser) { navigate('/login'); return; }
 
-    const allMatches = JSON.parse(localStorage.getItem('tinclo_matches') || '[]');
-    const myMatches  = allMatches.filter(m => m.userId === currentUser.id || !m.userId);
+    const allMatchesRaw = JSON.parse(localStorage.getItem('tinclo_matches') || '{}');
+    // Support both old array format and new per-user object format
+    const allMatches = Array.isArray(allMatchesRaw)
+      ? allMatchesRaw
+      : (allMatchesRaw[currentUser.id] || []);
+    const myMatches  = allMatches.filter(m => m.userId === currentUser.id || !m.userId || Array.isArray(allMatchesRaw) === false);
     const liked      = myMatches.length;
     const applied    = myMatches.filter(m => m.applied).length;
     const views      = JSON.parse(localStorage.getItem('tinclo_job_views') || '[]');

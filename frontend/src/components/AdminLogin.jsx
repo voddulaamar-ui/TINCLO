@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-const ADMIN_CREDENTIALS = { email: 'admin@tinclo.com', password: 'Admin@2026' };
+import ApiService from '../services/ApiService';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
@@ -10,22 +9,27 @@ const AdminLogin = () => {
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     if (!form.email || !form.password) { setError('Email and password are required.'); return; }
     setLoading(true);
-    setTimeout(() => {
-      if (form.email.toLowerCase().trim() === ADMIN_CREDENTIALS.email && form.password === ADMIN_CREDENTIALS.password) {
-        const adminUser = { id: 'admin-001', name: 'Admin', email: ADMIN_CREDENTIALS.email, role: 'admin' };
-        localStorage.setItem('tinclo_current_user', JSON.stringify(adminUser));
-        localStorage.setItem('tinclo_admin_session', 'true');
-        navigate('/admin');
-      } else {
-        setError('Invalid admin credentials.');
+    try {
+      const data = await ApiService.loginUser({ email: form.email.toLowerCase().trim(), password: form.password });
+      if (data?.user?.role !== 'admin') {
+        setError('Access denied. Admin privileges required.');
+        setLoading(false);
+        return;
       }
+      localStorage.setItem('tinclo_token', data.token);
+      localStorage.setItem('tinclo_current_user', JSON.stringify(data.user));
+      localStorage.setItem('tinclo_admin_session', 'true');
+      navigate('/admin');
+    } catch (err) {
+      setError(err.message || 'Invalid admin credentials.');
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   };
 
   const inputCls = "w-full px-4 py-3 bg-white/[0.08] border border-white/15 rounded-xl text-white text-sm outline-none transition-all placeholder-white/30 focus:border-indigo-400 focus:bg-indigo-500/10 focus:shadow-[0_0_0_3px_rgba(102,126,234,0.2)] disabled:opacity-60 disabled:cursor-not-allowed";
@@ -92,9 +96,9 @@ const AdminLogin = () => {
           </button>
         </form>
 
-        {/* Hint */}
+        {/* Security notice */}
         <div className="mt-6 p-3.5 bg-white/5 rounded-xl border border-white/[0.08] text-center">
-          <p className="text-white/40 text-[11px] uppercase tracking-wide m-0 mb-1.5">Default credentials:</p>
+          <p className="text-white/40 text-[11px] uppercase tracking-wide m-0 mb-1.5">Admin access only</p>
         </div>
 
         <button onClick={() => navigate('/')}
