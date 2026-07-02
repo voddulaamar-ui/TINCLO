@@ -5,33 +5,38 @@ const matchSchema = new mongoose.Schema({
     type: String,
     required: true,
     index: true,
-    // Note: userId references User.userId (String), not User._id (ObjectId)
-    // This maintains compatibility with existing data
+    // userId references User.userId (String), not User._id (ObjectId)
   },
   jobId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Job',
-    required: true
+    required: true,
   },
   applied: {
     type: Boolean,
-    default: false
+    default: false,
   },
+  // Phase 1: rich application tracker status
   applicationStatus: {
     type: String,
-    enum: ['pending', 'selected', 'rejected'],
-    default: 'pending'
+    enum: ['saved', 'applied', 'under_review', 'interview_scheduled', 'offer', 'rejected'],
+    default: 'saved',
   },
-  statusUpdatedAt: {
-    type: Date
+  statusUpdatedAt: { type: Date },
+
+  // Phase 1: rule-based match score (0–100) and explanation
+  matchScore: { type: Number, default: 0 },
+  matchDetails: {
+    matchedSkills:   { type: [String], default: [] },
+    missingSkills:   { type: [String], default: [] },
+    matchedDomain:   { type: Boolean, default: false },
+    matchedLocation: { type: Boolean, default: false },
+    experienceMatch: { type: Boolean, default: false },
   },
-  matchedAt: {
-    type: Date,
-    default: Date.now
-  }
+
+  matchedAt: { type: Date, default: Date.now },
 });
 
-// Ensure a user can't match the same job twice
 matchSchema.index({ userId: 1, jobId: 1 }, { unique: true });
 
 export default mongoose.model('Match', matchSchema);

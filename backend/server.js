@@ -12,6 +12,7 @@ import jobViewRoutes from './routes/jobViews.js';
 import applyRoutes from './routes/apply.js';
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
+import recruiterRoutes from './routes/recruiter.js';
 
 dotenv.config();
 mongoose.set('bufferCommands', false);
@@ -33,7 +34,6 @@ const requireMongoConnection = (req, res, next) => {
       message: 'Database unavailable. The API server is running, but MongoDB Atlas is not connected yet.',
     });
   }
-
   next();
 };
 
@@ -41,15 +41,14 @@ const ALLOWED_ORIGINS = [
   process.env.FRONTEND_URL || 'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:5175',
-  // Production URLs will be set via FRONTEND_URL env var
 ].filter(Boolean);
 
-// Socket.io setup
+// ── Socket.io ────────────────────────────────────────────────────────────────
 const io = new Server(httpServer, {
   cors: { origin: ALLOWED_ORIGINS, methods: ['GET', 'POST'], credentials: true },
 });
 
-// Track online users
+// Track online users — exposed to routes via app.get('onlineUsers')
 const onlineUsers = new Map();
 
 io.on('connection', (socket) => {
@@ -64,18 +63,14 @@ io.on('connection', (socket) => {
 
   socket.on('notification:send', ({ toUserId, notification }) => {
     const targetSocket = onlineUsers.get(toUserId);
-    if (targetSocket) {
-      io.to(targetSocket).emit('notification:receive', notification);
-    }
+    if (targetSocket) io.to(targetSocket).emit('notification:receive', notification);
   });
 
   socket.on('chat:message', ({ toUserId, message, fromUser }) => {
     const targetSocket = onlineUsers.get(toUserId);
     const msgData = { ...message, fromUser, timestamp: new Date().toISOString() };
-    if (targetSocket) {
-      io.to(targetSocket).emit('chat:message', msgData);
-    }
-    socket.emit('chat:message', msgData); // echo to sender
+    if (targetSocket) io.to(targetSocket).emit('chat:message', msgData);
+    socket.emit('chat:message', msgData);
   });
 
   socket.on('job:liked', ({ userId, jobTitle, company }) => {
@@ -99,32 +94,31 @@ io.on('connection', (socket) => {
   });
 });
 
-// Make io available to routes
+// Expose io and onlineUsers to routes
 app.set('io', io);
+app.set('onlineUsers', onlineUsers);
 
+// ── Middleware ───────────────────────────────────────────────────────────────
 app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (mobile apps, curl, etc.)
+  origin: (origin, callback) => {
     if (!origin) return callback(null, true);
-    if (ALLOWED_ORIGINS.includes(origin)) {
-      return callback(null, true);
-    }
-    // In production, also allow the FRONTEND_URL variations
-    return callback(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    return callback(null, true); // allow all in dev
   },
   credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
-// Routes
+// ── Routes ───────────────────────────────────────────────────────────────────
 app.use('/api/external-jobs', externalJobRoutes);
-app.use('/api/jobs', requireMongoConnection, jobRoutes);
-app.use('/api/matches', requireMongoConnection, matchRoutes);
-app.use('/api/users', requireMongoConnection, userRoutes);
-app.use('/api/job-views', requireMongoConnection, jobViewRoutes);
-app.use('/api/apply', requireMongoConnection, applyRoutes);
-app.use('/api/auth', requireMongoConnection, authRoutes);
-app.use('/api/admin', requireMongoConnection, adminRoutes);
+app.use('/api/jobs',          requireMongoConnection, jobRoutes);
+app.use('/api/matches',       requireMongoConnection, matchRoutes);
+app.use('/api/users',         requireMongoConnection, userRoutes);
+app.use('/api/job-views',     requireMongoConnection, jobViewRoutes);
+app.use('/api/apply',         requireMongoConnection, applyRoutes);
+app.use('/api/auth',          requireMongoConnection, authRoutes);
+app.use('/api/admin',         requireMongoConnection, adminRoutes);
+app.use('/api/recruiter',     requireMongoConnection, recruiterRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({
@@ -132,22 +126,20 @@ app.get('/api/health', (req, res) => {
     message: 'TINCLO API is running',
     database: isMongoConnected() ? 'connected' : 'disconnected',
     version: '2.0.0',
-    features: ['JWT Auth', 'Socket.io', 'Email', 'Admin Panel', 'Recruiter Dashboard'],
+    features: ['JWT Auth', 'Socket.io', 'Email', 'Admin Panel', 'Recruiter Dashboard', 'Rule-Based Matching'],
     timestamp: new Date().toISOString(),
   });
 });
 
-// Connect to MongoDB then start the server
+// ── MongoDB ──────────────────────────────────────────────────────────────────
 mongoose.connect(process.env.MONGODB_URI)
-  .then(() => {
-    console.log('Connected to MongoDB Atlas');
-  })
+  .then(() => console.log('✅ Connected to MongoDB Atlas'))
   .catch((error) => {
     console.error('MongoDB connection error:', error.message);
     console.error('API server is still running. Database routes will return 503 until Atlas is reachable.');
   });
 
 httpServer.listen(PORT, '0.0.0.0', () => {
-  console.log(`TINCLO Server running on port ${PORT}`);
+  console.log(`🚀 TINCLO Server running on port ${PORT}`);
   console.log('Socket.io enabled for real-time notifications');
 });

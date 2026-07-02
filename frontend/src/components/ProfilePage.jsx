@@ -1,323 +1,411 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import NavigationLanding from './NavigationLanding';
 import ApiService from '../services/ApiService';
+import { profileCompleteness } from '../services/MatchingService';
 
-const ProfilePage = () => {
+const DOMAINS = [
+  'Full Stack', 'Frontend', 'Backend', 'Data Science', 'Machine Learning',
+  'DevOps', 'Cloud', 'Mobile', 'UI/UX Design', 'Product Management',
+  'Cybersecurity', 'Blockchain', 'QA / Testing', 'Data Engineering', 'Other',
+];
+
+const inputCls = 'w-full px-3.5 py-[11px] border-2 border-gray-200 rounded-[10px] text-sm text-gray-700 bg-gray-50 transition-all duration-200 font-[inherit] outline-none focus:border-indigo-400 focus:bg-white focus:shadow-[0_0_0_3px_rgba(102,126,234,0.1)] disabled:opacity-60 disabled:cursor-not-allowed';
+
+// ── Reusable tag-input ──────────────────────────────────────────────────────
+const TagInput = ({ tags = [], onChange, placeholder }) => {
+  const [input, setInput] = useState('');
+  const add = (val) => {
+    const v = val.trim();
+    if (v && !tags.includes(v)) onChange([...tags, v]);
+    setInput('');
+  };
+  const remove = (t) => onChange(tags.filter(x => x !== t));
+  return (
+    <div className="flex flex-wrap gap-1.5 p-2 border-2 border-gray-200 rounded-[10px] bg-gray-50 focus-within:border-indigo-400 focus-within:bg-white min-h-[46px] cursor-text"
+      onClick={() => document.getElementById(`tag-${placeholder}`)?.focus()}>
+      {tags.map(t => (
+        <span key={t} className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold text-indigo-700 border border-indigo-200"
+          style={{ background: 'linear-gradient(135deg,#e0e7ff,#f3e8ff)' }}>
+          {t}
+          <button type="button" className="text-indigo-400 hover:text-red-500 leading-none bg-transparent border-none cursor-pointer" onClick={() => remove(t)}>×</button>
+        </span>
+      ))}
+      <input id={`tag-${placeholder}`} value={input} placeholder={tags.length ? '' : placeholder}
+        className="border-none outline-none bg-transparent text-sm text-gray-700 placeholder-gray-400 min-w-[120px] flex-1"
+        onChange={e => setInput(e.target.value)}
+        onKeyDown={e => { if (['Enter', ',', 'Tab'].includes(e.key)) { e.preventDefault(); add(input); } }}
+        onBlur={() => { if (input.trim()) add(input); }} />
+    </div>
+  );
+};
+
+// ── Section card ─────────────────────────────────────────────────────────────
+const Section = ({ title, icon, children }) => (
+  <div className="bg-white rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.06)] border border-gray-200 overflow-hidden">
+    <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+      <span className="text-lg">{icon}</span>
+      <h3 className="text-base font-bold text-gray-800 m-0">{title}</h3>
+    </div>
+    <div className="px-6 py-5">{children}</div>
+  </div>
+);
+
+export default function ProfilePage() {
   const navigate = useNavigate();
-  const [currentUser, setCurrentUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('details');
+  const [currentUser, setCurrentUser]   = useState(null);
+  const [activeTab, setActiveTab]       = useState('profile');
+  const [saving, setSaving]             = useState(false);
+  const [saveMsg, setSaveMsg]           = useState({ type: '', text: '' });
+  const [completeness, setCompleteness] = useState(0);
 
-  const [details, setDetails] = useState({ name: '', email: '', phone: '', location: '', bio: '' });
-  const [detailsLoading, setDetailsLoading] = useState(false);
-  const [detailsError, setDetailsError] = useState('');
-  const [detailsSuccess, setDetailsSuccess] = useState('');
-
+  // ── Form state ──────────────────────────────────────────────────────────
+  const [form, setForm] = useState({
+    name: '', email: '', phone: '', location: '', bio: '',
+    skills: [], domain: '', experienceYears: '', preferredLocations: [],
+    expectedSalary: '', linkedin: '', github: '',
+    education: [], projects: [],
+  });
   const [passwords, setPasswords] = useState({ current: '', newPass: '', confirm: '' });
+  const [passMsg, setPassMsg]     = useState({ type: '', text: '' });
   const [passLoading, setPassLoading] = useState(false);
-  const [passError, setPassError] = useState('');
-  const [passSuccess, setPassSuccess] = useState('');
-  const [showCurrent, setShowCurrent] = useState(false);
-  const [showNew, setShowNew] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
+  const [showPws, setShowPws]     = useState({ current: false, newPass: false, confirm: false });
 
+  // ── Load profile ────────────────────────────────────────────────────────
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('tinclo_current_user') || 'null');
     if (!user) { navigate('/login'); return; }
     setCurrentUser(user);
 
-    // Try to load profile from backend first, fallback to localStorage
-    const loadProfile = async () => {
-      try {
-        const apiUser = await ApiService.fetchUser(user.id);
-        setDetails({
-          name: apiUser.name || user.name || '',
-          email: apiUser.email || user.email || '',
-          phone: apiUser.phone || '',
-          location: apiUser.location || '',
-          bio: apiUser.bio || '',
-        });
-      } catch (err) {
-        // Fallback to localStorage
-        const users = JSON.parse(localStorage.getItem('tinclo_users') || '[]');
-        const full = users.find(u => u.id === user.id);
-        if (full) {
-          setDetails({ name: full.name || '', email: full.email || '', phone: full.phone || '', location: full.location || '', bio: full.bio || '' });
-        } else {
-          setDetails({ name: user.name || '', email: user.email || '', phone: '', location: '', bio: '' });
-        }
-      }
-    };
-    loadProfile();
-  }, [navigate]);
+    ApiService.getMe().then(u => {
+      const f = {
+        name: u.name || '', email: u.email || '', phone: u.phone || '',
+        location: u.location || '', bio: u.bio || '',
+        skills: u.skills || [], domain: u.domain || '',
+        experienceYears: u.experienceYears || '',
+        preferredLocations: u.preferredLocations || [],
+        expectedSalary: u.expectedSalary || '',
+        linkedin: u.linkedin || '', github: u.github || '',
+        education: u.education || [], projects: u.projects || [],
+      };
+      setForm(f);
+      setCompleteness(profileCompleteness(u));
+    }).catch(() => {
+      setForm(f => ({ ...f, name: user.name || '', email: user.email || '' }));
+    });
+  }, [navigate]); // eslint-disable-line
 
-  const handleDetailsChange = (e) => setDetails({ ...details, [e.target.name]: e.target.value });
+  const setField = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-  const handleUpdateDetails = async (e) => {
+  // ── Education helpers ───────────────────────────────────────────────────
+  const addEdu = () => setForm(p => ({ ...p, education: [...p.education, { degree: '', institution: '', year: '' }] }));
+  const setEdu = (i, k, v) => setForm(p => { const e = [...p.education]; e[i] = { ...e[i], [k]: v }; return { ...p, education: e }; });
+  const removeEdu = (i) => setForm(p => ({ ...p, education: p.education.filter((_, idx) => idx !== i) }));
+
+  // ── Project helpers ─────────────────────────────────────────────────────
+  const addProj = () => setForm(p => ({ ...p, projects: [...p.projects, { name: '', description: '', url: '' }] }));
+  const setProj = (i, k, v) => setForm(p => { const pr = [...p.projects]; pr[i] = { ...pr[i], [k]: v }; return { ...p, projects: pr }; });
+  const removeProj = (i) => setForm(p => ({ ...p, projects: p.projects.filter((_, idx) => idx !== i) }));
+
+  // ── Save profile ────────────────────────────────────────────────────────
+  const handleSave = async (e) => {
     e.preventDefault();
-    setDetailsError(''); setDetailsSuccess('');
-    if (!details.name.trim()) { setDetailsError('Name is required.'); return; }
-    if (details.name.trim().length < 2) { setDetailsError('Name must be at least 2 characters.'); return; }
-    if (!details.email.trim()) { setDetailsError('Email is required.'); return; }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(details.email)) { setDetailsError('Please enter a valid email.'); return; }
-    if (details.phone && !/^[+\d\s\-()]{7,15}$/.test(details.phone)) { setDetailsError('Please enter a valid phone number.'); return; }
-    setDetailsLoading(true);
+    setSaving(true); setSaveMsg({ type: '', text: '' });
     try {
-      try { await ApiService.updateProfile({ email: details.email, name: details.name, phone: details.phone, location: details.location, bio: details.bio }); }
-      catch (apiErr) { console.warn('Backend unavailable, saving locally:', apiErr.message); }
-      const users = JSON.parse(localStorage.getItem('tinclo_users') || '[]');
-      const idx = users.findIndex(u => u.id === currentUser.id);
-      if (idx !== -1) { users[idx] = { ...users[idx], ...details }; localStorage.setItem('tinclo_users', JSON.stringify(users)); }
-      const updatedUser = { ...currentUser, name: details.name, email: details.email };
-      localStorage.setItem('tinclo_current_user', JSON.stringify(updatedUser));
-      setCurrentUser(updatedUser);
-      setDetailsSuccess('✅ Profile updated successfully!');
-    } catch (err) { setDetailsError('Failed to update profile. Please try again.'); }
-    finally { setDetailsLoading(false); }
+      const updated = await ApiService.updateCandidateProfile(form);
+      const merged = { ...currentUser, name: updated.user.name, email: updated.user.email };
+      localStorage.setItem('tinclo_current_user', JSON.stringify(merged));
+      setCurrentUser(merged);
+      setCompleteness(profileCompleteness(updated.user));
+      setSaveMsg({ type: 'success', text: '✅ Profile saved successfully!' });
+    } catch (err) {
+      setSaveMsg({ type: 'error', text: err.message || 'Failed to save profile.' });
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaveMsg({ type: '', text: '' }), 4000);
+    }
   };
 
-  const handlePassChange = (e) => setPasswords({ ...passwords, [e.target.name]: e.target.value });
-
-  const handleResetPassword = async (e) => {
+  // ── Change password ─────────────────────────────────────────────────────
+  const handlePassChange = async (e) => {
     e.preventDefault();
-    setPassError(''); setPassSuccess('');
-    if (!passwords.current) { setPassError('Current password is required.'); return; }
-    if (!passwords.newPass) { setPassError('New password is required.'); return; }
-    if (passwords.newPass.length < 8) { setPassError('New password must be at least 8 characters.'); return; }
-    if (!/[A-Z]/.test(passwords.newPass)) { setPassError('New password must contain at least one uppercase letter.'); return; }
-    if (!/[0-9]/.test(passwords.newPass)) { setPassError('New password must contain at least one number.'); return; }
-    if (passwords.newPass !== passwords.confirm) { setPassError('Passwords do not match.'); return; }
+    setPassMsg({ type: '', text: '' });
+    if (passwords.newPass !== passwords.confirm) { setPassMsg({ type: 'error', text: 'New passwords do not match.' }); return; }
+    if (passwords.newPass.length < 8) { setPassMsg({ type: 'error', text: 'Password must be at least 8 characters.' }); return; }
     setPassLoading(true);
     try {
-      let apiSuccess = false;
-      try {
-        await ApiService.changePassword({ email: currentUser.email, currentPassword: passwords.current, newPassword: passwords.newPass });
-        apiSuccess = true;
-      } catch (apiErr) {
-        if (apiErr.message.includes('incorrect') || apiErr.message.includes('401')) { setPassError('Current password is incorrect.'); setPassLoading(false); return; }
-        console.warn('Backend unavailable, updating locally:', apiErr.message);
-      }
-      const users = JSON.parse(localStorage.getItem('tinclo_users') || '[]');
-      const idx = users.findIndex(u => u.id === currentUser.id);
-      if (idx !== -1) {
-        if (!apiSuccess && users[idx].password !== passwords.current) { setPassError('Current password is incorrect.'); setPassLoading(false); return; }
-        users[idx].password = passwords.newPass;
-        localStorage.setItem('tinclo_users', JSON.stringify(users));
-      }
-      setPassSuccess('✅ Password changed successfully!');
+      await ApiService.changePassword({ email: currentUser.email, currentPassword: passwords.current, newPassword: passwords.newPass });
+      setPassMsg({ type: 'success', text: '✅ Password changed successfully!' });
       setPasswords({ current: '', newPass: '', confirm: '' });
-    } catch (err) { setPassError('Failed to update password. Please try again.'); }
-    finally { setPassLoading(false); }
+    } catch (err) {
+      setPassMsg({ type: 'error', text: err.message || 'Failed to change password.' });
+    } finally {
+      setPassLoading(false);
+      setTimeout(() => setPassMsg({ type: '', text: '' }), 4000);
+    }
   };
-
-  const getStrength = (pass) => {
-    if (!pass) return null;
-    let score = 0;
-    if (pass.length >= 8) score++;
-    if (/[A-Z]/.test(pass)) score++;
-    if (/[0-9]/.test(pass)) score++;
-    if (/[^A-Za-z0-9]/.test(pass)) score++;
-    if (score <= 1) return { label: 'Weak',   color: '#fc8181', bars: 1 };
-    if (score === 2) return { label: 'Fair',   color: '#f6ad55', bars: 2 };
-    if (score === 3) return { label: 'Good',   color: '#f6ad55', bars: 3 };
-    return              { label: 'Strong', color: '#48bb78', bars: 4 };
-  };
-  const strength = getStrength(passwords.newPass);
 
   if (!currentUser) return null;
 
   const initials = currentUser.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
+  const completenessColor = completeness >= 80 ? '#48bb78' : completeness >= 50 ? '#f6ad55' : '#fc8181';
 
-  const inputCls = "w-full px-3.5 py-[11px] border-2 border-gray-200 rounded-[10px] text-sm text-gray-700 bg-gray-50 transition-all duration-200 font-[inherit] outline-none focus:border-indigo-400 focus:bg-white focus:shadow-[0_0_0_3px_rgba(102,126,234,0.1)] disabled:opacity-60 disabled:cursor-not-allowed";
+  const tabs = [
+    { id: 'profile',   label: '👤 Profile' },
+    { id: 'skills',    label: '🛠 Skills & Preferences' },
+    { id: 'education', label: '🎓 Education & Projects' },
+    { id: 'password',  label: '🔒 Password' },
+  ];
 
   return (
     <>
       <NavigationLanding />
-      {/* profile-container */}
-      <div className="min-h-screen pt-24 px-5 pb-10" style={{ background: 'linear-gradient(135deg, #f0f4ff 0%, #faf0ff 50%, #f0fff4 100%)' }}>
-        {/* profile-content */}
-        <div className="max-w-[1100px] mx-auto flex gap-7 items-start flex-col md:flex-row">
+      <div className="min-h-screen pt-20 px-4 pb-12" style={{ background: 'linear-gradient(135deg,#f0f4ff 0%,#faf0ff 50%,#f0fff4 100%)' }}>
+        <div className="max-w-[1100px] mx-auto flex gap-6 items-start flex-col md:flex-row">
 
-          {/* Sidebar */}
-          <div className="w-full md:w-[280px] md:flex-shrink-0">
-            <div className="bg-white rounded-3xl px-6 py-8 text-center shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-gray-200">
-              {/* Avatar */}
-              <div className="w-[88px] h-[88px] rounded-full flex items-center justify-center text-[32px] font-extrabold text-white mx-auto mb-4 shadow-[0_6px_20px_rgba(102,126,234,0.4)]"
-                style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)' }}>
+          {/* ── Sidebar ── */}
+          <div className="w-full md:w-[270px] flex-shrink-0 flex flex-col gap-4">
+            {/* Avatar card */}
+            <div className="bg-white rounded-2xl px-5 py-6 text-center shadow-[0_4px_20px_rgba(0,0,0,0.06)] border border-gray-200">
+              <div className="w-20 h-20 rounded-full flex items-center justify-center text-2xl font-extrabold text-white mx-auto mb-3 shadow-[0_4px_14px_rgba(102,126,234,0.4)]"
+                style={{ background: 'linear-gradient(135deg,#667eea,#764ba2)' }}>
                 {initials}
               </div>
-              <h2 className="text-xl font-extrabold text-gray-900 m-0 mb-1.5">{currentUser.name}</h2>
-              <p className="text-[13px] text-gray-500 m-0 mb-4 break-all">{currentUser.email}</p>
-              {/* Badge */}
-              <div className="inline-block px-3.5 py-1 rounded-[20px] text-xs font-bold mb-5 text-indigo-600"
-                style={{ background: 'linear-gradient(135deg, #e0e7ff, #f3e8ff)' }}>
-                💼 Job Seeker
-              </div>
-              {/* Stats */}
-              <div className="flex gap-4 justify-center mb-6 p-4 bg-gray-50 rounded-xl">
-                {[
-                  { num: (() => { try { const d = JSON.parse(localStorage.getItem('tinclo_matches') || '{}'); const arr = Array.isArray(d) ? d : (d[currentUser.id] || []); return arr.filter(m => m.applied).length; } catch(e){ return 0; } })(), label: 'Applied' },
-                  { num: (() => { try { const d = JSON.parse(localStorage.getItem('tinclo_matches') || '{}'); const arr = Array.isArray(d) ? d : (d[currentUser.id] || []); return arr.length; } catch(e){ return 0; } })(), label: 'Matches' },
-                ].map((s, i) => (
-                  <div key={i} className="flex flex-col items-center gap-0.5">
-                    <span className="text-[22px] font-extrabold text-indigo-500">{s.num}</span>
-                    <span className="text-[11px] text-gray-500 font-semibold">{s.label}</span>
-                  </div>
-                ))}
-              </div>
-              <button
-                className="w-full py-2.5 bg-gray-50 text-indigo-500 border-2 border-gray-200 rounded-[10px] text-sm font-semibold cursor-pointer transition-all hover:bg-gray-100 hover:border-indigo-400 hover:-translate-y-px"
-                onClick={() => navigate('/jobs')}
-              >
-                ← Back to Jobs
-              </button>
-            </div>
-          </div>
+              <h2 className="text-lg font-extrabold text-gray-900 m-0 mb-0.5">{currentUser.name}</h2>
+              <p className="text-xs text-gray-500 m-0 mb-3 break-all">{currentUser.email}</p>
+              <span className={`inline-block px-3 py-0.5 rounded-full text-xs font-bold text-white mb-4 capitalize`}
+                style={{ background: currentUser.role === 'recruiter' ? '#38a169' : 'linear-gradient(135deg,#667eea,#764ba2)' }}>
+                {currentUser.role === 'recruiter' ? '🏢 Recruiter' : '💼 Job Seeker'}
+              </span>
 
-          {/* Main */}
-          <div className="flex-1 min-w-0">
-            {/* Tabs */}
-            <div className="flex gap-2 mb-5">
-              {[
-                { id: 'details',  label: '✏️ Update Details' },
-                { id: 'password', label: '🔒 Reset Password' },
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  className={[
-                    'px-[22px] py-2.5 rounded-full border-2 text-sm font-semibold cursor-pointer transition-all',
-                    activeTab === tab.id
-                      ? 'text-white border-transparent shadow-[0_4px_14px_rgba(102,126,234,0.4)]'
-                      : 'bg-white text-gray-500 border-gray-200 hover:border-indigo-400 hover:text-indigo-500',
-                  ].join(' ')}
-                  style={activeTab === tab.id ? { background: 'linear-gradient(135deg, #667eea, #764ba2)' } : {}}
-                  onClick={() => setActiveTab(tab.id)}
-                >
-                  {tab.label}
+              {/* Completeness ring */}
+              <div className="flex flex-col items-center gap-1 p-3 bg-gray-50 rounded-xl">
+                <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Profile Strength</div>
+                <div className="relative w-14 h-14">
+                  <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
+                    <circle cx="28" cy="28" r="22" fill="none" stroke="#e2e8f0" strokeWidth="5" />
+                    <circle cx="28" cy="28" r="22" fill="none" stroke={completenessColor} strokeWidth="5"
+                      strokeLinecap="round"
+                      strokeDasharray={`${2 * Math.PI * 22}`}
+                      strokeDashoffset={`${2 * Math.PI * 22 * (1 - completeness / 100)}`}
+                      style={{ transition: 'stroke-dashoffset 0.5s ease' }} />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center text-sm font-black" style={{ color: completenessColor }}>{completeness}%</div>
+                </div>
+                {completeness < 80 && <p className="text-[11px] text-gray-400 text-center m-0">Complete your profile to get better matches</p>}
+              </div>
+
+              <button className="w-full mt-4 py-2 text-sm font-semibold text-indigo-600 border-2 border-gray-200 rounded-[10px] bg-gray-50 hover:bg-gray-100 hover:border-indigo-300 cursor-pointer transition-all"
+                onClick={() => navigate('/jobs')}>← Back to Jobs</button>
+            </div>
+
+            {/* Tab nav */}
+            <div className="bg-white rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.06)] border border-gray-200 overflow-hidden">
+              {tabs.map(t => (
+                <button key={t.id} onClick={() => setActiveTab(t.id)}
+                  className={`w-full text-left px-5 py-3 text-sm font-semibold border-none cursor-pointer transition-all border-b border-gray-100 last:border-b-0 ${activeTab === t.id ? 'text-indigo-600 bg-indigo-50' : 'text-gray-600 bg-white hover:bg-gray-50'}`}>
+                  {t.label}
                 </button>
               ))}
             </div>
+          </div>
 
-            {/* Card */}
-            <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-gray-200 overflow-hidden animate-slide-up">
-              {/* Card header */}
-              <div className="px-8 py-6" style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)' }}>
-                <h3 className="text-white text-xl font-extrabold m-0 mb-1">
-                  {activeTab === 'details' ? 'Personal Information' : 'Change Password'}
-                </h3>
-                <p className="text-white/80 text-[13px] m-0">
-                  {activeTab === 'details' ? 'Update your profile details below' : 'Choose a strong password with at least 8 characters'}
-                </p>
+          {/* ── Main ── */}
+          <div className="flex-1 min-w-0">
+            {/* Save message */}
+            {saveMsg.text && (
+              <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-semibold border-l-4 ${saveMsg.type === 'success' ? 'bg-green-50 text-green-800 border-green-400' : 'bg-red-50 text-red-700 border-red-400'}`}>
+                {saveMsg.text}
               </div>
+            )}
 
-              {/* Details Tab */}
-              {activeTab === 'details' && (
-                <form onSubmit={handleUpdateDetails} className="px-8 py-7 flex flex-col gap-5">
-                  <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[13px] font-bold text-gray-700">Full Name *</label>
-                      <input type="text" name="name" value={details.name} onChange={handleDetailsChange} placeholder="Your full name" disabled={detailsLoading} required className={inputCls} />
+            <form onSubmit={handleSave} className="flex flex-col gap-5">
+
+              {/* ── Profile tab ── */}
+              {activeTab === 'profile' && (
+                <>
+                  <Section title="Personal Information" icon="👤">
+                    <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[13px] font-bold text-gray-700">Full Name *</label>
+                        <input type="text" value={form.name} onChange={e => setField('name', e.target.value)} required className={inputCls} placeholder="Your full name" />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[13px] font-bold text-gray-700">Email</label>
+                        <input type="email" value={form.email} disabled className={inputCls} />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[13px] font-bold text-gray-700">Phone</label>
+                        <input type="tel" value={form.phone} onChange={e => setField('phone', e.target.value)} className={inputCls} placeholder="+91 98765 43210" />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[13px] font-bold text-gray-700">Location</label>
+                        <input type="text" value={form.location} onChange={e => setField('location', e.target.value)} className={inputCls} placeholder="e.g. Bengaluru, India" />
+                      </div>
                     </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[13px] font-bold text-gray-700">Email Address *</label>
-                      <input type="email" name="email" value={details.email} onChange={handleDetailsChange} placeholder="your@email.com" disabled={detailsLoading} required className={inputCls} />
+                    <div className="flex flex-col gap-1.5 mt-4">
+                      <label className="text-[13px] font-bold text-gray-700">Bio</label>
+                      <textarea rows={3} value={form.bio} onChange={e => setField('bio', e.target.value)} className={`${inputCls} resize-y min-h-[70px]`} placeholder="Tell employers about yourself..." />
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[13px] font-bold text-gray-700">Phone Number</label>
-                      <input type="tel" name="phone" value={details.phone} onChange={handleDetailsChange} placeholder="+91 98765 43210" disabled={detailsLoading} className={inputCls} />
+                  </Section>
+
+                  <Section title="Social Links" icon="🔗">
+                    <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[13px] font-bold text-gray-700">LinkedIn URL</label>
+                        <input type="url" value={form.linkedin} onChange={e => setField('linkedin', e.target.value)} className={inputCls} placeholder="https://linkedin.com/in/..." />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[13px] font-bold text-gray-700">GitHub URL</label>
+                        <input type="url" value={form.github} onChange={e => setField('github', e.target.value)} className={inputCls} placeholder="https://github.com/..." />
+                      </div>
                     </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[13px] font-bold text-gray-700">Location</label>
-                      <input type="text" name="location" value={details.location} onChange={handleDetailsChange} placeholder="e.g. Bengaluru, India" disabled={detailsLoading} className={inputCls} />
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[13px] font-bold text-gray-700">Bio / About Me</label>
-                    <textarea name="bio" value={details.bio} onChange={handleDetailsChange} rows={3} placeholder="Tell employers about yourself..." disabled={detailsLoading}
-                      className={`${inputCls} resize-y min-h-[80px]`} />
-                  </div>
-                  {detailsError && <div className="bg-red-100 text-red-700 px-4 py-3 rounded-[10px] text-[13px] font-medium border-l-4 border-red-400">⚠️ {detailsError}</div>}
-                  {detailsSuccess && <div className="bg-green-100 text-green-800 px-4 py-3 rounded-[10px] text-[13px] font-semibold border-l-4 border-green-400">{detailsSuccess}</div>}
-                  <button type="submit" disabled={detailsLoading}
-                    className="self-start px-7 py-3 text-white text-[15px] font-bold border-none rounded-xl cursor-pointer transition-all flex items-center gap-2 shadow-[0_4px_14px_rgba(102,126,234,0.4)] hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(102,126,234,0.5)] disabled:opacity-60 disabled:cursor-not-allowed"
-                    style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)' }}>
-                    {detailsLoading ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</> : '💾 Save Changes'}
-                  </button>
-                </form>
+                  </Section>
+                </>
               )}
 
-              {/* Password Tab */}
-              {activeTab === 'password' && (
-                <form onSubmit={handleResetPassword} className="px-8 py-7 flex flex-col gap-5">
-                  {/* Current password */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[13px] font-bold text-gray-700">Current Password *</label>
-                    <div className="relative flex items-center">
-                      <input type={showCurrent ? 'text' : 'password'} name="current" value={passwords.current} onChange={handlePassChange} placeholder="Enter current password" disabled={passLoading} required className={`${inputCls} pr-11`} />
-                      <button type="button" className="absolute right-3 bg-none border-none cursor-pointer text-base p-1 leading-none" onClick={() => setShowCurrent(!showCurrent)}>{showCurrent ? '🙈' : '👁️'}</button>
+              {/* ── Skills & Preferences tab ── */}
+              {activeTab === 'skills' && (
+                <>
+                  <Section title="Skills" icon="🛠">
+                    <p className="text-xs text-gray-500 mb-3 m-0">Type a skill and press Enter or comma to add</p>
+                    <TagInput tags={form.skills} onChange={v => setField('skills', v)} placeholder="e.g. React, Node.js, Python" />
+                  </Section>
+
+                  <Section title="Domain & Experience" icon="🎯">
+                    <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[13px] font-bold text-gray-700">Preferred Domain</label>
+                        <select value={form.domain} onChange={e => setField('domain', e.target.value)} className={inputCls}>
+                          <option value="">Select domain...</option>
+                          {DOMAINS.map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[13px] font-bold text-gray-700">Years of Experience</label>
+                        <input type="number" min="0" max="50" value={form.experienceYears} onChange={e => setField('experienceYears', e.target.value)} className={inputCls} placeholder="e.g. 3" />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[13px] font-bold text-gray-700">Expected Salary</label>
+                        <input type="text" value={form.expectedSalary} onChange={e => setField('expectedSalary', e.target.value)} className={inputCls} placeholder="e.g. ₹10L - ₹15L" />
+                      </div>
                     </div>
-                  </div>
-                  {/* New password */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[13px] font-bold text-gray-700">New Password *</label>
-                    <div className="relative flex items-center">
-                      <input type={showNew ? 'text' : 'password'} name="newPass" value={passwords.newPass} onChange={handlePassChange} placeholder="Min 8 chars, 1 uppercase, 1 number" disabled={passLoading} required className={`${inputCls} pr-11`} />
-                      <button type="button" className="absolute right-3 bg-none border-none cursor-pointer text-base p-1 leading-none" onClick={() => setShowNew(!showNew)}>{showNew ? '🙈' : '👁️'}</button>
-                    </div>
-                    {strength && (
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <div className="flex gap-1 flex-1">
-                          {[1,2,3,4].map(i => (
-                            <div key={i} className="h-1 flex-1 rounded bg-gray-200 transition-colors duration-300"
-                              style={{ background: i <= strength.bars ? strength.color : undefined }} />
-                          ))}
+                  </Section>
+
+                  <Section title="Preferred Locations" icon="📍">
+                    <p className="text-xs text-gray-500 mb-3 m-0">Add cities or "Remote" — used for job matching</p>
+                    <TagInput tags={form.preferredLocations} onChange={v => setField('preferredLocations', v)} placeholder="e.g. Bengaluru, Remote, Hyderabad" />
+                  </Section>
+                </>
+              )}
+
+              {/* ── Education & Projects tab ── */}
+              {activeTab === 'education' && (
+                <>
+                  <Section title="Education" icon="🎓">
+                    <div className="flex flex-col gap-4">
+                      {form.education.map((edu, i) => (
+                        <div key={i} className="grid grid-cols-3 gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200 max-sm:grid-cols-1">
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[12px] font-bold text-gray-600">Degree</label>
+                            <input value={edu.degree} onChange={e => setEdu(i, 'degree', e.target.value)} className={inputCls} placeholder="e.g. B.Tech CSE" />
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[12px] font-bold text-gray-600">Institution</label>
+                            <input value={edu.institution} onChange={e => setEdu(i, 'institution', e.target.value)} className={inputCls} placeholder="University / College" />
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[12px] font-bold text-gray-600">Year</label>
+                            <div className="flex gap-2">
+                              <input value={edu.year} onChange={e => setEdu(i, 'year', e.target.value)} className={inputCls} placeholder="2023" />
+                              <button type="button" onClick={() => removeEdu(i)} className="px-3 py-2 bg-red-50 text-red-500 border border-red-200 rounded-[10px] text-sm cursor-pointer hover:bg-red-100 flex-shrink-0">✕</button>
+                            </div>
+                          </div>
                         </div>
-                        <span className="text-[11px] font-bold min-w-[44px]" style={{ color: strength.color }}>{strength.label}</span>
+                      ))}
+                      <button type="button" onClick={addEdu} className="self-start px-4 py-2 text-sm font-semibold text-indigo-600 border-2 border-dashed border-indigo-300 rounded-xl bg-indigo-50 hover:bg-indigo-100 cursor-pointer transition-all">+ Add Education</button>
+                    </div>
+                  </Section>
+
+                  <Section title="Projects" icon="💡">
+                    <div className="flex flex-col gap-4">
+                      {form.projects.map((p, i) => (
+                        <div key={i} className="flex flex-col gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                          <div className="flex gap-3">
+                            <div className="flex-1 flex flex-col gap-1.5">
+                              <label className="text-[12px] font-bold text-gray-600">Project Name</label>
+                              <input value={p.name} onChange={e => setProj(i, 'name', e.target.value)} className={inputCls} placeholder="Project title" />
+                            </div>
+                            <div className="flex-1 flex flex-col gap-1.5">
+                              <label className="text-[12px] font-bold text-gray-600">URL</label>
+                              <div className="flex gap-2">
+                                <input value={p.url} onChange={e => setProj(i, 'url', e.target.value)} className={inputCls} placeholder="https://..." />
+                                <button type="button" onClick={() => removeProj(i)} className="px-3 py-2 bg-red-50 text-red-500 border border-red-200 rounded-[10px] text-sm cursor-pointer hover:bg-red-100 flex-shrink-0">✕</button>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[12px] font-bold text-gray-600">Description</label>
+                            <textarea rows={2} value={p.description} onChange={e => setProj(i, 'description', e.target.value)} className={`${inputCls} resize-none`} placeholder="Brief description..." />
+                          </div>
+                        </div>
+                      ))}
+                      <button type="button" onClick={addProj} className="self-start px-4 py-2 text-sm font-semibold text-indigo-600 border-2 border-dashed border-indigo-300 rounded-xl bg-indigo-50 hover:bg-indigo-100 cursor-pointer transition-all">+ Add Project</button>
+                    </div>
+                  </Section>
+                </>
+              )}
+
+              {/* Save button (not for password tab) */}
+              {activeTab !== 'password' && (
+                <button type="submit" disabled={saving}
+                  className="self-start px-8 py-3 text-white text-sm font-bold border-none rounded-xl cursor-pointer transition-all flex items-center gap-2 shadow-[0_4px_14px_rgba(102,126,234,0.4)] hover:-translate-y-0.5 disabled:opacity-60"
+                  style={{ background: 'linear-gradient(135deg,#667eea,#764ba2)' }}>
+                  {saving ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</> : '💾 Save Profile'}
+                </button>
+              )}
+            </form>
+
+            {/* ── Password tab ── */}
+            {activeTab === 'password' && (
+              <form onSubmit={handlePassChange} className="flex flex-col gap-5">
+                <Section title="Change Password" icon="🔒">
+                  <div className="flex flex-col gap-4">
+                    {[
+                      { key: 'current', label: 'Current Password' },
+                      { key: 'newPass', label: 'New Password' },
+                      { key: 'confirm', label: 'Confirm New Password' },
+                    ].map(({ key, label }) => (
+                      <div key={key} className="flex flex-col gap-1.5">
+                        <label className="text-[13px] font-bold text-gray-700">{label}</label>
+                        <div className="relative flex items-center">
+                          <input type={showPws[key] ? 'text' : 'password'} value={passwords[key]}
+                            onChange={e => setPasswords(p => ({ ...p, [key]: e.target.value }))}
+                            className={`${inputCls} pr-11`} placeholder="••••••••" required />
+                          <button type="button" className="absolute right-3 border-none bg-transparent cursor-pointer text-base text-gray-400"
+                            onClick={() => setShowPws(p => ({ ...p, [key]: !p[key] }))}>
+                            {showPws[key] ? '🙈' : '👁️'}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {passMsg.text && (
+                      <div className={`px-4 py-3 rounded-[10px] text-[13px] font-medium border-l-4 ${passMsg.type === 'success' ? 'bg-green-50 text-green-800 border-green-400' : 'bg-red-50 text-red-700 border-red-400'}`}>
+                        {passMsg.text}
                       </div>
                     )}
                   </div>
-                  {/* Confirm password */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[13px] font-bold text-gray-700">Confirm New Password *</label>
-                    <div className="relative flex items-center">
-                      <input type={showConfirm ? 'text' : 'password'} name="confirm" value={passwords.confirm} onChange={handlePassChange} placeholder="Re-enter new password" disabled={passLoading} required className={`${inputCls} pr-11`} />
-                      <button type="button" className="absolute right-3 bg-none border-none cursor-pointer text-base p-1 leading-none" onClick={() => setShowConfirm(!showConfirm)}>{showConfirm ? '🙈' : '👁️'}</button>
-                    </div>
-                    {passwords.confirm && passwords.newPass !== passwords.confirm && <p className="text-xs text-red-500 mt-1">⚠️ Passwords do not match</p>}
-                    {passwords.confirm && passwords.newPass === passwords.confirm && passwords.confirm.length > 0 && <p className="text-xs text-green-600 mt-1">✅ Passwords match</p>}
-                  </div>
-                  {/* Requirements */}
-                  <div className="bg-gray-50 rounded-[10px] px-4 py-3.5 text-[13px]">
-                    <p className="font-bold text-gray-700 m-0 mb-2">Password must contain:</p>
-                    <ul className="list-none p-0 m-0 flex flex-col gap-1">
-                      {[
-                        { met: passwords.newPass.length >= 8, text: 'At least 8 characters' },
-                        { met: /[A-Z]/.test(passwords.newPass), text: 'One uppercase letter' },
-                        { met: /[0-9]/.test(passwords.newPass), text: 'One number' },
-                      ].map((req, i) => (
-                        <li key={i} className={`flex items-center gap-1.5 ${req.met ? 'text-green-600' : 'text-gray-400'}`}>
-                          <span className="text-[10px]">{req.met ? '✓' : '○'}</span>{req.text}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  {passError && <div className="bg-red-100 text-red-700 px-4 py-3 rounded-[10px] text-[13px] font-medium border-l-4 border-red-400">⚠️ {passError}</div>}
-                  {passSuccess && <div className="bg-green-100 text-green-800 px-4 py-3 rounded-[10px] text-[13px] font-semibold border-l-4 border-green-400">{passSuccess}</div>}
-                  <button type="submit" disabled={passLoading}
-                    className="self-start px-7 py-3 text-white text-[15px] font-bold border-none rounded-xl cursor-pointer transition-all flex items-center gap-2 shadow-[0_4px_14px_rgba(102,126,234,0.4)] hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(102,126,234,0.5)] disabled:opacity-60 disabled:cursor-not-allowed"
-                    style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)' }}>
-                    {passLoading ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Updating...</> : '🔒 Update Password'}
-                  </button>
-                </form>
-              )}
-            </div>
+                </Section>
+                <button type="submit" disabled={passLoading}
+                  className="self-start px-8 py-3 text-white text-sm font-bold border-none rounded-xl cursor-pointer transition-all flex items-center gap-2 shadow-[0_4px_14px_rgba(102,126,234,0.4)] hover:-translate-y-0.5 disabled:opacity-60"
+                  style={{ background: 'linear-gradient(135deg,#667eea,#764ba2)' }}>
+                  {passLoading ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Updating...</> : '🔒 Update Password'}
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </div>
     </>
   );
-};
-
-export default ProfilePage;
+}

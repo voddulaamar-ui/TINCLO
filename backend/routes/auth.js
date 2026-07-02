@@ -15,22 +15,21 @@ const generateToken = (user) =>
 
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
-  const { name, email, password, phone } = req.body;
+  const { name, email, password, phone, role } = req.body;
 
   if (!name || !email || !password)
     return res.status(400).json({ message: 'Name, email and password are required.' });
-
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))
     return res.status(400).json({ message: 'Please provide a valid email address.' });
-
   if (password.length < 8)
     return res.status(400).json({ message: 'Password must be at least 8 characters.' });
-
   if (!/[A-Z]/.test(password))
     return res.status(400).json({ message: 'Password must contain at least one uppercase letter.' });
-
   if (!/[0-9]/.test(password))
     return res.status(400).json({ message: 'Password must contain at least one number.' });
+
+  // Only allow 'user' or 'recruiter' roles at registration — admins are set manually
+  const assignedRole = role === 'recruiter' ? 'recruiter' : 'user';
 
   try {
     const existing = await User.findOne({ email: email.toLowerCase().trim() });
@@ -46,7 +45,7 @@ router.post('/register', async (req, res) => {
       email: email.toLowerCase().trim(),
       password: hashedPassword,
       phone: phone || '',
-      role: 'user',
+      role: assignedRole,
     });
 
     await user.save();
@@ -70,7 +69,6 @@ router.post('/login', async (req, res) => {
 
   if (!email || !password)
     return res.status(400).json({ message: 'Email and password are required.' });
-
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))
     return res.status(400).json({ message: 'Please provide a valid email address.' });
 
@@ -79,13 +77,11 @@ router.post('/login', async (req, res) => {
     if (!user)
       return res.status(401).json({ message: 'Invalid email or password.' });
 
-    // Support both bcrypt hashed and plain text passwords (migration)
     let isMatch = false;
     if (user.password.startsWith('$2')) {
       isMatch = await bcrypt.compare(password, user.password);
     } else {
       isMatch = user.password === password;
-      // Upgrade to hashed on successful login
       if (isMatch) {
         user.password = await bcrypt.hash(password, 12);
       }
@@ -100,7 +96,16 @@ router.post('/login', async (req, res) => {
     const token = generateToken(user);
     res.json({
       token,
-      user: { id: user.userId, name: user.name, email: user.email, role: user.role },
+      user: {
+        id: user.userId,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        skills: user.skills || [],
+        domain: user.domain || '',
+        experienceYears: user.experienceYears || 0,
+        preferredLocations: user.preferredLocations || [],
+      },
       message: `Welcome back, ${user.name}!`,
     });
   } catch (error) {
@@ -114,13 +119,10 @@ router.post('/change-password', authenticateToken, async (req, res) => {
 
   if (!email || !currentPassword || !newPassword)
     return res.status(400).json({ message: 'All fields are required.' });
-
   if (newPassword.length < 8)
     return res.status(400).json({ message: 'New password must be at least 8 characters.' });
-
   if (!/[A-Z]/.test(newPassword))
     return res.status(400).json({ message: 'New password must contain at least one uppercase letter.' });
-
   if (!/[0-9]/.test(newPassword))
     return res.status(400).json({ message: 'New password must contain at least one number.' });
 
@@ -134,20 +136,18 @@ router.post('/change-password', authenticateToken, async (req, res) => {
     } else {
       isMatch = user.password === currentPassword;
     }
-
     if (!isMatch)
       return res.status(401).json({ message: 'Current password is incorrect.' });
 
     user.password = await bcrypt.hash(newPassword, 12);
     await user.save();
-
     res.json({ message: 'Password updated successfully!' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-// PUT /api/auth/update-profile
+// PUT /api/auth/update-profile  — basic fields (name/phone/location/bio)
 router.put('/update-profile', authenticateToken, async (req, res) => {
   const { email, name, phone, location, bio } = req.body;
 
@@ -159,16 +159,67 @@ router.put('/update-profile', authenticateToken, async (req, res) => {
     const user = await User.findOne({ email: email.toLowerCase().trim() });
     if (!user) return res.status(404).json({ message: 'User not found.' });
 
-    user.name = name.trim();
-    user.phone = phone || '';
+    user.name     = name.trim();
+    user.phone    = phone    || '';
     user.location = location || '';
-    user.bio = bio || '';
+    user.bio      = bio      || '';
     await user.save();
 
     res.json({
       message: 'Profile updated successfully!',
-      user: { id: user.userId, name: user.name, email: user.email },
+      user: { id: user.userId, name: user.name, email: user.email, role: user.role },
     });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// PUT /api/auth/update-candidate-profile  — full Phase-1 candidate fields
+router.put('/update-candidate-profile', authenticateToken, async (req, res) => {
+  const {
+    name, phone, location, bio,
+    skills, domain, experienceYears, preferredLocations,
+    expectedSalary, education, projects, linkedin, github,
+    profilePicture, resumeUrl,
+  } = req.body;
+
+  try {
+    const user = await User.findOne({ userId: req.user.userId });
+    if (!user) return res.status(404).json({ message: 'User not found.' });
+
+    if (name && name.trim().length >= 2) user.name = name.trim();
+    if (phone    !== undefined) user.phone    = phone;
+    if (location !== undefined) user.location = location;
+    if (bio      !== undefined) user.bio      = bio;
+
+    if (Array.isArray(skills))            user.skills            = skills;
+    if (domain   !== undefined)           user.domain            = domain;
+    if (experienceYears !== undefined)    user.experienceYears   = Number(experienceYears) || 0;
+    if (Array.isArray(preferredLocations))user.preferredLocations= preferredLocations;
+    if (expectedSalary !== undefined)     user.expectedSalary    = expectedSalary;
+    if (Array.isArray(education))         user.education         = education;
+    if (Array.isArray(projects))          user.projects          = projects;
+    if (linkedin !== undefined)           user.linkedin          = linkedin;
+    if (github   !== undefined)           user.github            = github;
+    if (profilePicture !== undefined)     user.profilePicture    = profilePicture;
+    if (resumeUrl !== undefined)          user.resumeUrl         = resumeUrl;
+
+    await user.save();
+
+    const u = user.toObject();
+    delete u.password;
+    res.json({ message: 'Profile updated successfully!', user: u });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET /api/auth/me  — get current user's full profile
+router.get('/me', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findOne({ userId: req.user.userId }).select('-password');
+    if (!user) return res.status(404).json({ message: 'User not found.' });
+    res.json(user);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

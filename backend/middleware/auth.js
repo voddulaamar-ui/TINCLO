@@ -23,3 +23,10 @@ export const requireAdmin = (req, res, next) => {
   }
   next();
 };
+
+export const requireRecruiter = (req, res, next) => {
+  if (req.user?.role !== 'recruiter' && req.user?.role !== 'admin') {
+    return res.status(403).json({ message: 'Recruiter access required' });
+  }
+  next();
+};
