@@ -298,7 +298,9 @@ export default function RecruiterDashboard() {
                       <p className="text-xs text-gray-500 m-0 mb-1">{a.user?.email || '—'}</p>
                       <div className="flex flex-wrap gap-2 text-xs text-gray-500">
                         {a.matchScore > 0 && <span className="font-bold text-indigo-600">🎯 {a.matchScore}% match</span>}
+                        {a.user?.experienceYears > 0 && <span>🧑‍💼 {a.user.experienceYears} yrs exp</span>}
                         {a.user?.skills?.length > 0 && <span>🛠 {a.user.skills.slice(0, 3).join(', ')}{a.user.skills.length > 3 ? '...' : ''}</span>}
+                        {a.user?.location && <span>📍 {a.user.location}</span>}
                         <span>📅 {new Date(a.appliedAt).toLocaleDateString()}</span>
                       </div>
                     </div>
@@ -309,9 +311,20 @@ export default function RecruiterDashboard() {
                         onChange={e => handleUpdateStatus(a.matchId, e.target.value)}>
                         {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                       </select>
-                      {a.user?.linkedin && (
-                        <a href={a.user.linkedin} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline no-underline">LinkedIn ↗</a>
-                      )}
+                      <div className="flex gap-2 flex-wrap justify-end">
+                        {a.user?.linkedin && (
+                          <a href={a.user.linkedin} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline no-underline">🔗 LinkedIn</a>
+                        )}
+                        {a.user?.github && (
+                          <a href={a.user.github} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-700 hover:underline no-underline">💻 GitHub</a>
+                        )}
+                        {a.user?.resumeUrl && (
+                          <a href={a.user.resumeUrl} target="_blank" rel="noopener noreferrer"
+                            className="text-xs font-bold text-white bg-indigo-500 hover:bg-indigo-600 px-2.5 py-0.5 rounded-lg no-underline transition-colors">
+                            📄 Resume
+                          </a>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}

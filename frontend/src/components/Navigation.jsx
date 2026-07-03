@@ -71,6 +71,11 @@ export const Navigation = ({ currentView, matchCount, onNavigate, currentUser, o
                   <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full min-w-[20px] text-center text-white" style={{ background: 'linear-gradient(135deg,#ff6b6b,#ee5a24)' }}>{matchCount}</span>
                 )}
               </button>
+              <Link to="/saved-jobs"
+                className={`${navBase} no-underline`}
+                title="Saved Jobs">
+                🔖 Saved
+              </Link>
             </div>
           )}
 

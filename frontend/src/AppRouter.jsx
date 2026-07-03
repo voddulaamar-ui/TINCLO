@@ -9,6 +9,7 @@ import AdminLogin from './components/AdminLogin';
 import AdminRoute from './components/AdminRoute';
 import RecruiterDashboard from './components/RecruiterDashboard';
 import AnalyticsPage from './components/AnalyticsPage';
+import SavedJobsPage from './components/SavedJobsPage';
 import { App } from './App';
 
 // ── Auth helpers ─────────────────────────────────────────────────────────────
@@ -46,6 +47,7 @@ const AppRouter = () => (
       <Route path="/login"       element={<LoginPage />} />
       <Route path="/jobs"        element={<UserOnlyRoute><App /></UserOnlyRoute>} />
       <Route path="/profile"     element={<AuthRoute><ProfilePage /></AuthRoute>} />
+      <Route path="/saved-jobs"  element={<AuthRoute><UserOnlyRoute><SavedJobsPage /></UserOnlyRoute></AuthRoute>} />
       <Route path="/analytics"   element={<AuthRoute><UserOnlyRoute><AnalyticsPage /></UserOnlyRoute></AuthRoute>} />
       <Route path="/recruiter"   element={<RecruiterRoute><RecruiterDashboard /></RecruiterRoute>} />
       <Route path="/admin/login" element={<AdminLogin />} />

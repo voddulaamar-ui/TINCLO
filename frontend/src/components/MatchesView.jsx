@@ -1,59 +1,98 @@
-// MatchesView — Application tracker with 6-stage status pipeline
+// MatchesView — Application tracker with 6-stage pipeline, remove/unsave, why-match panel
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ApiService from '../services/ApiService';
 import SharedApplyModal from './ApplyModal';
 import { matchColor } from '../services/MatchingService';
 import { timeAgo } from '../hooks/useJobAge';
 
+// ── Constants ────────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
-  saved:                { label: 'Saved',               icon: '🔖', color: '#667eea', bg: '#ebf4ff', step: 0 },
-  applied:              { label: 'Applied',             icon: '📤', color: '#f6ad55', bg: '#fffaf0', step: 1 },
-  under_review:         { label: 'Under Review',        icon: '🔍', color: '#3182ce', bg: '#ebf8ff', step: 2 },
-  interview_scheduled:  { label: 'Interview Scheduled', icon: '📅', color: '#805ad5', bg: '#faf5ff', step: 3 },
-  offer:                { label: 'Offer 🎉',            icon: '🎉', color: '#38a169', bg: '#f0fff4', step: 4 },
-  rejected:             { label: 'Rejected',            icon: '❌', color: '#e53e3e', bg: '#fff5f5', step: -1 },
+  saved:               { label: 'Saved',               icon: '🔖', color: '#667eea', bg: '#ebf4ff', step: 0 },
+  applied:             { label: 'Applied',             icon: '📤', color: '#f6ad55', bg: '#fffaf0', step: 1 },
+  under_review:        { label: 'Under Review',        icon: '🔍', color: '#3182ce', bg: '#ebf8ff', step: 2 },
+  interview_scheduled: { label: 'Interview Scheduled', icon: '📅', color: '#805ad5', bg: '#faf5ff', step: 3 },
+  offer:               { label: 'Offer 🎉',            icon: '🎉', color: '#38a169', bg: '#f0fff4', step: 4 },
+  rejected:            { label: 'Rejected',            icon: '❌', color: '#e53e3e', bg: '#fff5f5', step: -1 },
 };
 
 const PIPELINE_STEPS = ['saved', 'applied', 'under_review', 'interview_scheduled', 'offer'];
 
 const SOURCE_COLORS = {
-  'Naukri':    '#ff6b35', 'LinkedIn': '#0077b5', 'Indeed': '#2164f3',
-  'Glassdoor': '#0caa41', 'Recruiter': '#38a169', 'External': '#764ba2',
+  Naukri: '#ff6b35', LinkedIn: '#0077b5', Indeed: '#2164f3',
+  Glassdoor: '#0caa41', Recruiter: '#38a169', External: '#764ba2',
 };
 
-// ── Status pipeline tracker ──────────────────────────────────────────────────
+// ── Confirm remove modal (declared first to avoid hoisting errors) ─────────
+const ConfirmRemoveModal = ({ onConfirm, onCancel }) => (
+  <div
+    className="fixed inset-0 bg-black/50 flex items-center justify-center z-[2000] p-4"
+    onClick={onCancel}
+  >
+    <div
+      className="bg-white rounded-2xl p-7 w-full max-w-[360px] shadow-[0_20px_60px_rgba(0,0,0,0.2)]"
+      onClick={e => e.stopPropagation()}
+    >
+      <h3 className="text-lg font-extrabold text-gray-900 m-0 mb-2">Remove Saved Job?</h3>
+      <p className="text-sm text-gray-500 m-0 mb-6 leading-relaxed">
+        This will remove the job from your saved list. You can re-save it by swiping right again.
+      </p>
+      <div className="flex gap-3 justify-end">
+        <button
+          className="px-5 py-2.5 bg-gray-100 text-gray-700 border-none rounded-[10px] text-sm font-semibold cursor-pointer hover:bg-gray-200 transition-all"
+          onClick={onCancel}
+        >Cancel</button>
+        <button
+          className="px-5 py-2.5 bg-red-500 text-white border-none rounded-[10px] text-sm font-bold cursor-pointer hover:bg-red-600 transition-all"
+          onClick={onConfirm}
+        >Remove</button>
+      </div>
+    </div>
+  </div>
+);
+
+// ── Pipeline tracker ──────────────────────────────────────────────────────────
 const StatusPipeline = ({ currentStatus }) => {
-  const cfg = STATUS_CONFIG[currentStatus] || STATUS_CONFIG.saved;
+  const cfg         = STATUS_CONFIG[currentStatus] || STATUS_CONFIG.saved;
   const currentStep = cfg.step;
+
   if (currentStatus === 'rejected') {
     return (
       <div className="flex items-center gap-2 mt-2">
-        <div className="w-full h-1.5 rounded-full bg-red-200 relative overflow-hidden">
-          <div className="h-full rounded-full bg-red-400" style={{ width: '100%' }} />
+        <div className="w-full h-1.5 rounded-full bg-red-200">
+          <div className="h-full rounded-full bg-red-400 w-full" />
         </div>
         <span className="text-xs font-bold text-red-500 whitespace-nowrap">❌ Rejected</span>
       </div>
     );
   }
+
   return (
     <div className="flex items-center gap-1 mt-2 w-full">
       {PIPELINE_STEPS.map((step, i) => {
-        const s = STATUS_CONFIG[step];
-        const done    = i <  currentStep;
-        const active  = i === currentStep;
-        const pending = i >  currentStep;
+        const s      = STATUS_CONFIG[step];
+        const done   = i < currentStep;
+        const active = i === currentStep;
         return (
           <React.Fragment key={step}>
             <div className="flex flex-col items-center gap-0.5 flex-shrink-0" title={s.label}>
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] border-2 transition-all ${active ? 'border-current scale-110 shadow-md' : done ? 'border-transparent' : 'border-gray-200 bg-gray-100'}`}
-                style={ active || done ? { background: s.color, borderColor: s.color, color: '#fff' } : {} }>
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] border-2 transition-all ${
+                  active ? 'scale-110 shadow-md' : done ? 'border-transparent' : 'border-gray-200 bg-gray-100'
+                }`}
+                style={active || done ? { background: s.color, borderColor: s.color, color: '#fff' } : {}}
+              >
                 {done ? '✓' : s.icon}
               </div>
-              <span className={`text-[9px] font-semibold whitespace-nowrap ${active ? 'text-indigo-600' : done ? 'text-gray-500' : 'text-gray-300'}`}>{s.label.split(' ')[0]}</span>
+              <span className={`text-[9px] font-semibold whitespace-nowrap ${active ? 'text-indigo-600' : done ? 'text-gray-500' : 'text-gray-300'}`}>
+                {s.label.split(' ')[0]}
+              </span>
             </div>
             {i < PIPELINE_STEPS.length - 1 && (
-              <div className="flex-1 h-0.5 rounded-full mx-0.5 transition-all" style={{ background: done || active ? STATUS_CONFIG[PIPELINE_STEPS[i+1]]?.color || '#667eea' : '#e2e8f0' }} />
+              <div
+                className="flex-1 h-0.5 rounded-full mx-0.5 transition-all"
+                style={{ background: done || active ? STATUS_CONFIG[PIPELINE_STEPS[i + 1]]?.color || '#667eea' : '#e2e8f0' }}
+              />
             )}
           </React.Fragment>
         );
@@ -62,43 +101,63 @@ const StatusPipeline = ({ currentStatus }) => {
   );
 };
 
-// ── Match card ───────────────────────────────────────────────────────────────
-const MatchCard = ({ match, isSelected, onSelect, onApply, onStatusChange, currentUser }) => {
-  const jobId = match.job.id || match.job._id;
-  const source = match.job.source;
+// ── Single match card ─────────────────────────────────────────────────────────
+const MatchCard = ({ match, isSelected, onSelect, onStatusChange, onRequestDelete, onApply, currentUser }) => {
+  const jobId    = match.job.id || match.job._id;
+  const source   = match.job.source;
   const srcColor = SOURCE_COLORS[source] || '#764ba2';
-  const status = match.applicationStatus || (match.applied ? 'applied' : 'saved');
-  const cfg  = STATUS_CONFIG[status] || STATUS_CONFIG.saved;
-  const mc   = match.matchScore ? matchColor(match.matchScore) : null;
+  const status   = match.applicationStatus || (match.applied ? 'applied' : 'saved');
+  const cfg      = STATUS_CONFIG[status] || STATUS_CONFIG.saved;
+  const mc       = match.matchScore ? matchColor(match.matchScore) : null;
   const [applyJob, setApplyJob] = useState(null);
 
   return (
     <>
-      <div className={`bg-white rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.07)] px-5 py-4 cursor-pointer transition-all duration-200 border-2 relative overflow-hidden hover:shadow-[0_8px_25px_rgba(0,0,0,0.12)] hover:-translate-y-0.5 ${isSelected ? 'border-indigo-400 shadow-[0_8px_25px_rgba(102,126,234,0.2)]' : 'border-transparent hover:border-indigo-100'}`}
-        onClick={onSelect}>
+      <div
+        className={`bg-white rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.07)] px-5 py-4 cursor-pointer transition-all duration-200 border-2 relative overflow-hidden hover:shadow-[0_8px_25px_rgba(0,0,0,0.12)] hover:-translate-y-0.5 ${
+          isSelected ? 'border-indigo-400 shadow-[0_8px_25px_rgba(102,126,234,0.2)]' : 'border-transparent hover:border-indigo-100'
+        }`}
+        onClick={onSelect}
+      >
         {/* Left accent bar */}
-        <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ background: `linear-gradient(135deg,#667eea,#764ba2)` }} />
+        <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
+          style={{ background: 'linear-gradient(135deg,#667eea,#764ba2)' }} />
 
         <div className="flex items-start gap-3 pl-1">
-          {/* Logo / initial */}
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-lg font-bold text-white flex-shrink-0 shadow-[0_3px_10px_rgba(0,0,0,0.15)]"
-            style={{ background: `linear-gradient(135deg,${srcColor},#764ba2)` }}>
-            {match.job.company.charAt(0).toUpperCase()}
+          {/* Company initial */}
+          <div
+            className="w-11 h-11 rounded-xl flex items-center justify-center text-lg font-bold text-white flex-shrink-0 shadow-[0_3px_10px_rgba(0,0,0,0.15)]"
+            style={{ background: `linear-gradient(135deg,${srcColor},#764ba2)` }}
+          >
+            {(match.job.company || '?').charAt(0).toUpperCase()}
           </div>
 
           {/* Info */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-0.5">
               <h3 className="text-base font-bold text-gray-800 m-0">{match.job.title}</h3>
-              {source && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: srcColor }}>{source}</span>}
+              {source && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: srcColor }}>
+                  {source}
+                </span>
+              )}
+              {match.job.workMode && (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600">
+                  {match.job.workMode}
+                </span>
+              )}
             </div>
             <p className="text-sm text-gray-500 m-0">{match.job.company} · {match.job.location}</p>
-            {match.job.salary && <p className="text-xs text-green-600 font-semibold m-0 mt-0.5">💰 {match.job.salary}</p>}
+            {match.job.salary && (
+              <p className="text-xs text-green-600 font-semibold m-0 mt-0.5">💰 {match.job.salary}</p>
+            )}
 
             {/* Match score */}
             {mc && match.matchScore > 0 && (
-              <span className="inline-block mt-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border"
-                style={{ background: mc.bg, color: mc.text, borderColor: mc.border }}>
+              <span
+                className="inline-block mt-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border"
+                style={{ background: mc.bg, color: mc.text, borderColor: mc.border }}
+              >
                 🎯 {match.matchScore}% match
               </span>
             )}
@@ -107,7 +166,8 @@ const MatchCard = ({ match, isSelected, onSelect, onApply, onStatusChange, curre
             {match.job.tags?.length > 0 && (
               <div className="flex gap-1 flex-wrap mt-1.5">
                 {match.job.tags.slice(0, 3).map((t, i) => (
-                  <span key={i} className="text-indigo-600 px-2 py-0.5 rounded-xl text-[10px] font-semibold border border-indigo-100" style={{ background: '#eef2ff' }}>{t}</span>
+                  <span key={i} className="text-indigo-600 px-2 py-0.5 rounded-xl text-[10px] font-semibold border border-indigo-100"
+                    style={{ background: '#eef2ff' }}>{t}</span>
                 ))}
               </div>
             )}
@@ -118,28 +178,47 @@ const MatchCard = ({ match, isSelected, onSelect, onApply, onStatusChange, curre
 
           {/* Right actions */}
           <div className="flex flex-col items-end gap-2 flex-shrink-0 ml-2" onClick={e => e.stopPropagation()}>
-            {/* Current status badge */}
-            <span className="px-2.5 py-1 rounded-full text-xs font-bold" style={{ color: cfg.color, background: cfg.bg }}>
+            {/* Status badge */}
+            <span className="px-2.5 py-1 rounded-full text-xs font-bold"
+              style={{ color: cfg.color, background: cfg.bg }}>
               {cfg.icon} {cfg.label}
             </span>
 
-            {/* Update status */}
-            <select className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-700 cursor-pointer outline-none hover:border-indigo-300"
-              value={status} onChange={e => onStatusChange(match.id, e.target.value)}
-              onClick={e => e.stopPropagation()}>
-              {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+            {/* Status dropdown */}
+            <select
+              className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-700 cursor-pointer outline-none hover:border-indigo-300"
+              value={status}
+              onChange={e => onStatusChange(match.id, e.target.value)}
+              onClick={e => e.stopPropagation()}
+            >
+              {Object.entries(STATUS_CONFIG).map(([k, v]) => (
+                <option key={k} value={k}>{v.icon} {v.label}</option>
+              ))}
             </select>
 
             {/* Apply / Applied */}
             {match.applied ? (
-              <span className="text-[11px] font-bold text-green-700 bg-green-50 px-3 py-1 rounded-full border border-green-200">✅ Applied</span>
+              <span className="text-[11px] font-bold text-green-700 bg-green-50 px-3 py-1 rounded-full border border-green-200">
+                ✅ Applied
+              </span>
             ) : (
-              <button className="px-3.5 py-1.5 text-xs font-bold text-white border-none rounded-xl cursor-pointer shadow-[0_3px_10px_rgba(102,126,234,0.4)] hover:-translate-y-0.5 transition-all whitespace-nowrap"
+              <button
+                className="px-3.5 py-1.5 text-xs font-bold text-white border-none rounded-xl cursor-pointer shadow-[0_3px_10px_rgba(102,126,234,0.4)] hover:-translate-y-0.5 transition-all whitespace-nowrap"
                 style={{ background: 'linear-gradient(135deg,#667eea,#764ba2)' }}
-                onClick={e => { e.stopPropagation(); setApplyJob(match.job); }}>
+                onClick={e => { e.stopPropagation(); setApplyJob(match.job); }}
+              >
                 🚀 Apply
               </button>
             )}
+
+            {/* Remove from saved */}
+            <button
+              className="px-3 py-1 text-[11px] font-semibold text-red-500 bg-red-50 border border-red-200 rounded-xl cursor-pointer hover:bg-red-100 transition-all whitespace-nowrap"
+              onClick={e => { e.stopPropagation(); onRequestDelete(match.id); }}
+              title="Remove from saved list"
+            >
+              🗑 Remove
+            </button>
 
             <span className="text-[10px] text-gray-400">{timeAgo(match.matchedAt)}</span>
           </div>
@@ -148,37 +227,79 @@ const MatchCard = ({ match, isSelected, onSelect, onApply, onStatusChange, curre
 
       {/* Apply modal */}
       {applyJob && (
-        <SharedApplyModal job={applyJob} currentUser={currentUser} onClose={() => setApplyJob(null)}
-          onApply={(jobId) => { onApply(match.id); setApplyJob(null); }} />
+        <SharedApplyModal
+          job={applyJob}
+          currentUser={currentUser}
+          onClose={() => setApplyJob(null)}
+          onApply={() => { onApply(match.id); setApplyJob(null); }}
+        />
       )}
     </>
   );
 };
 
-// ── Main MatchesView ─────────────────────────────────────────────────────────
+// ── Main MatchesView ──────────────────────────────────────────────────────────
 export const MatchesView = ({ matches, onApply, onUndoApply, onNavigateToBrowser, currentUser }) => {
-  const [selectedId, setSelectedId] = useState(null);
+  const [selectedId, setSelectedId]     = useState(null);
   const [filterStatus, setFilterStatus] = useState('all');
+  const [deletingId, setDeletingId]     = useState(null);     // matchId pending confirm
+  const [localMatches, setLocalMatches] = useState(matches);  // local copy for optimistic updates
 
+  // Keep local copy in sync with parent
+  useEffect(() => { setLocalMatches(matches); }, [matches]);
+
+  // ── Update application status ─────────────────────────────────────────────
   const handleStatusChange = async (matchId, status) => {
+    // Optimistic update
+    setLocalMatches(prev => prev.map(m =>
+      m.id === matchId
+        ? { ...m, applicationStatus: status, applied: status === 'applied' ? true : m.applied }
+        : m
+    ));
     try {
       await ApiService.updateMatchStatus(matchId, status);
       if (status === 'applied') onApply(matchId);
     } catch (err) {
-      console.warn('Status update failed:', err.message);
-      if (status === 'applied') onApply(matchId);
+      console.warn('Status update failed, reverting:', err.message);
+      setLocalMatches(matches); // revert on failure
     }
   };
 
-  if (matches.length === 0) {
+  // ── Delete / unsave a match ───────────────────────────────────────────────
+  const handleDeleteConfirmed = async () => {
+    const matchId = deletingId;
+    if (!matchId) return;
+    setDeletingId(null);
+
+    // Find the job ID before we remove it
+    const removed = localMatches.find(m => m.id === matchId);
+    const removedJobId = removed?.job?.id || removed?.job?._id;
+
+    // Optimistic remove
+    setLocalMatches(prev => prev.filter(m => m.id !== matchId));
+    if (removedJobId && selectedId === removedJobId) setSelectedId(null);
+
+    try {
+      await ApiService.deleteMatch(matchId);
+    } catch (err) {
+      console.warn('Delete failed, restoring:', err.message);
+      setLocalMatches(matches); // restore on failure
+    }
+  };
+
+  // ── Empty state ───────────────────────────────────────────────────────────
+  if (localMatches.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-[400px] p-5">
         <div className="bg-white rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.08)] p-12 text-center max-w-[500px] flex flex-col items-center gap-4">
           <div className="text-6xl">🎯</div>
           <h2 className="text-2xl font-bold m-0 text-gray-800">No Matches Yet</h2>
           <p className="text-gray-500 m-0">Swipe right on jobs you're interested in to save them here.</p>
-          <button className="py-3.5 px-8 text-sm font-semibold text-white border-none rounded-xl cursor-pointer transition-all shadow-[0_4px_12px_rgba(102,126,234,0.35)] hover:-translate-y-0.5"
-            style={{ background: 'linear-gradient(135deg,#667eea,#764ba2)' }} onClick={onNavigateToBrowser}>
+          <button
+            className="py-3.5 px-8 text-sm font-semibold text-white border-none rounded-xl cursor-pointer transition-all shadow-[0_4px_12px_rgba(102,126,234,0.35)] hover:-translate-y-0.5"
+            style={{ background: 'linear-gradient(135deg,#667eea,#764ba2)' }}
+            onClick={onNavigateToBrowser}
+          >
             Browse Jobs
           </button>
         </div>
@@ -186,43 +307,68 @@ export const MatchesView = ({ matches, onApply, onUndoApply, onNavigateToBrowser
     );
   }
 
-  // Filter tabs
+  // ── Status counts for filter tabs ─────────────────────────────────────────
   const statusCounts = {};
-  for (const m of matches) {
+  for (const m of localMatches) {
     const s = m.applicationStatus || (m.applied ? 'applied' : 'saved');
     statusCounts[s] = (statusCounts[s] || 0) + 1;
   }
 
   const filteredMatches = filterStatus === 'all'
-    ? matches
-    : matches.filter(m => (m.applicationStatus || (m.applied ? 'applied' : 'saved')) === filterStatus);
+    ? localMatches
+    : localMatches.filter(m => (m.applicationStatus || (m.applied ? 'applied' : 'saved')) === filterStatus);
 
-  const selectedMatch = selectedId ? matches.find(m => (m.job.id || m.job._id) === selectedId) : null;
+  const selectedMatch = selectedId
+    ? localMatches.find(m => (m.job.id || m.job._id) === selectedId)
+    : null;
   const selStatus = selectedMatch?.applicationStatus || (selectedMatch?.applied ? 'applied' : 'saved');
 
   return (
     <div className="px-4 py-5 max-w-[1000px] mx-auto">
+
       {/* Header */}
       <div className="mb-5 px-6 py-5 rounded-2xl text-white shadow-[0_8px_25px_rgba(102,126,234,0.4)]"
         style={{ background: 'linear-gradient(135deg,#667eea,#764ba2)' }}>
-        <h2 className="text-2xl font-extrabold text-white m-0 mb-1">Your Matches ({matches.length})</h2>
-        <p className="text-white/70 text-sm m-0">Track your job applications through every stage</p>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h2 className="text-2xl font-extrabold text-white m-0 mb-1">Your Matches ({localMatches.length})</h2>
+            <p className="text-white/70 text-sm m-0">Track every application through its stage</p>
+          </div>
+          <div className="flex gap-2 text-xs text-white/80 flex-wrap">
+            <span className="bg-white/15 px-3 py-1 rounded-full">
+              ✅ Applied: {localMatches.filter(m => m.applied).length}
+            </span>
+            <span className="bg-white/15 px-3 py-1 rounded-full">
+              🎯 Avg: {localMatches.length
+                ? Math.round(localMatches.reduce((s, m) => s + (m.matchScore || 0), 0) / localMatches.length)
+                : 0}% match
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Status filter tabs */}
       <div className="flex gap-2 flex-wrap mb-5">
-        <button onClick={() => setFilterStatus('all')}
-          className={`px-4 py-1.5 rounded-full text-xs font-bold border-2 cursor-pointer transition-all ${filterStatus === 'all' ? 'text-white border-transparent' : 'bg-white text-gray-500 border-gray-200 hover:border-indigo-300'}`}
-          style={filterStatus === 'all' ? { background: 'linear-gradient(135deg,#667eea,#764ba2)' } : {}}>
-          All ({matches.length})
+        <button
+          onClick={() => setFilterStatus('all')}
+          className={`px-4 py-1.5 rounded-full text-xs font-bold border-2 cursor-pointer transition-all ${
+            filterStatus === 'all' ? 'text-white border-transparent' : 'bg-white text-gray-500 border-gray-200 hover:border-indigo-300'
+          }`}
+          style={filterStatus === 'all' ? { background: 'linear-gradient(135deg,#667eea,#764ba2)' } : {}}
+        >
+          All ({localMatches.length})
         </button>
         {Object.entries(STATUS_CONFIG).map(([k, v]) => {
           const count = statusCounts[k] || 0;
           if (count === 0) return null;
           return (
-            <button key={k} onClick={() => setFilterStatus(k)}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold border-2 cursor-pointer transition-all ${filterStatus === k ? 'text-white border-transparent' : 'bg-white border-gray-200 hover:border-indigo-300'}`}
-              style={filterStatus === k ? { background: v.color } : { color: v.color }}>
+            <button key={k}
+              onClick={() => setFilterStatus(k)}
+              className={`px-4 py-1.5 rounded-full text-xs font-bold border-2 cursor-pointer transition-all ${
+                filterStatus === k ? 'text-white border-transparent' : 'bg-white border-gray-200 hover:border-indigo-300'
+              }`}
+              style={filterStatus === k ? { background: v.color } : { color: v.color }}
+            >
               {v.icon} {v.label} ({count})
             </button>
           );
@@ -234,9 +380,16 @@ export const MatchesView = ({ matches, onApply, onUndoApply, onNavigateToBrowser
         {filteredMatches.map(match => {
           const jobId = match.job.id || match.job._id;
           return (
-            <MatchCard key={jobId} match={match} isSelected={selectedId === jobId}
+            <MatchCard
+              key={jobId}
+              match={match}
+              isSelected={selectedId === jobId}
               onSelect={() => setSelectedId(prev => prev === jobId ? null : jobId)}
-              onApply={onApply} onStatusChange={handleStatusChange} currentUser={currentUser} />
+              onStatusChange={handleStatusChange}
+              onRequestDelete={(matchId) => setDeletingId(matchId)}
+              onApply={onApply}
+              currentUser={currentUser}
+            />
           );
         })}
         {filteredMatches.length === 0 && (
@@ -250,41 +403,116 @@ export const MatchesView = ({ matches, onApply, onUndoApply, onNavigateToBrowser
           <div className="flex justify-between items-start gap-4 mb-4 pb-4 border-b border-gray-100 flex-wrap">
             <div>
               <h3 className="text-xl font-bold text-gray-800 m-0 mb-1">{selectedMatch.job.title}</h3>
-              <p className="text-gray-500 m-0">{selectedMatch.job.company} · {selectedMatch.job.location}</p>
+              <p className="text-gray-500 m-0 mb-1.5">{selectedMatch.job.company} · {selectedMatch.job.location}</p>
+              <div className="flex gap-2 flex-wrap">
+                {selectedMatch.job.workMode && (
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600">
+                    {selectedMatch.job.workMode}
+                  </span>
+                )}
+                {selectedMatch.job.jobType && (
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                    {selectedMatch.job.jobType}
+                  </span>
+                )}
+              </div>
             </div>
-            {!selectedMatch.applied && (
-              <button className="flex-shrink-0 px-5 py-2.5 text-white text-sm font-bold border-none rounded-[14px] cursor-pointer transition-all shadow-[0_4px_14px_rgba(102,126,234,0.4)] hover:-translate-y-0.5"
-                style={{ background: 'linear-gradient(135deg,#667eea,#764ba2)' }}
-                onClick={() => handleStatusChange(selectedMatch.id, 'applied')}>
-                🚀 Mark as Applied
+            <div className="flex gap-2 flex-wrap">
+              {!selectedMatch.applied && (
+                <button
+                  className="px-5 py-2.5 text-white text-sm font-bold border-none rounded-[14px] cursor-pointer transition-all shadow-[0_4px_14px_rgba(102,126,234,0.4)] hover:-translate-y-0.5"
+                  style={{ background: 'linear-gradient(135deg,#667eea,#764ba2)' }}
+                  onClick={() => handleStatusChange(selectedMatch.id, 'applied')}
+                >
+                  🚀 Mark as Applied
+                </button>
+              )}
+              <button
+                className="px-4 py-2.5 text-red-600 text-sm font-semibold bg-red-50 border border-red-200 rounded-[14px] cursor-pointer hover:bg-red-100 transition-all"
+                onClick={() => setDeletingId(selectedMatch.id)}
+              >
+                🗑 Remove
               </button>
-            )}
+            </div>
           </div>
 
-          {/* Pipeline */}
+          {/* Application stage */}
           <div className="mb-4">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Application Stage</p>
             <StatusPipeline currentStatus={selStatus} />
           </div>
 
-          {/* Why matches */}
+          {/* Why this matches */}
           {selectedMatch.matchDetails && selectedMatch.matchScore > 0 && (
             <div className="mb-4 p-4 rounded-xl border bg-indigo-50 border-indigo-100">
-              <p className="text-sm font-bold text-indigo-700 m-0 mb-2">💡 Why this job matches you ({selectedMatch.matchScore}%)</p>
-              {selectedMatch.matchDetails.matchedSkills?.length > 0 && <p className="text-xs text-gray-700 m-0 mb-1"><span className="font-semibold text-green-700">✅ Skills:</span> {selectedMatch.matchDetails.matchedSkills.join(', ')}</p>}
-              {selectedMatch.matchDetails.matchedDomain && <p className="text-xs text-green-700 m-0 mb-1">✅ Domain match</p>}
+              <p className="text-sm font-bold text-indigo-700 m-0 mb-2">
+                💡 Why this job matches you ({selectedMatch.matchScore}%)
+              </p>
+              {selectedMatch.matchDetails.matchedSkills?.length > 0 && (
+                <p className="text-xs text-gray-700 m-0 mb-1">
+                  <span className="font-semibold text-green-700">✅ Matched skills: </span>
+                  {selectedMatch.matchDetails.matchedSkills.join(', ')}
+                </p>
+              )}
+              {selectedMatch.matchDetails.matchedDomain   && <p className="text-xs text-green-700 m-0 mb-1">✅ Domain match</p>}
               {selectedMatch.matchDetails.matchedLocation && <p className="text-xs text-green-700 m-0 mb-1">✅ Location match</p>}
-              {selectedMatch.matchDetails.missingSkills?.length > 0 && <p className="text-xs text-gray-600 m-0"><span className="font-semibold text-orange-500">⚠️ Missing:</span> {selectedMatch.matchDetails.missingSkills.join(', ')}</p>}
+              {selectedMatch.matchDetails.experienceMatch && <p className="text-xs text-green-700 m-0 mb-1">✅ Experience fits</p>}
+              {selectedMatch.matchDetails.missingSkills?.length > 0 && (
+                <p className="text-xs text-gray-600 m-0">
+                  <span className="font-semibold text-orange-500">⚠️ Missing: </span>
+                  {selectedMatch.matchDetails.missingSkills.join(', ')}
+                </p>
+              )}
             </div>
           )}
 
+          {/* Job meta */}
           <div className="flex gap-5 mb-4 text-sm text-gray-600 flex-wrap">
             {selectedMatch.job.location && <span>📍 {selectedMatch.job.location}</span>}
             {selectedMatch.job.salary   && <span>💰 {selectedMatch.job.salary}</span>}
+            {(selectedMatch.job.experienceRequired || selectedMatch.job.experience) && (
+              <span>🧑‍💼 {selectedMatch.job.experienceRequired || selectedMatch.job.experience}</span>
+            )}
+            {selectedMatch.job.deadline && (
+              <span className="text-red-500 font-semibold">
+                ⏰ Deadline: {new Date(selectedMatch.job.deadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </span>
+            )}
           </div>
-          {selectedMatch.job.description && <p className="text-sm text-gray-600 leading-relaxed m-0">{selectedMatch.job.description}</p>}
-          <p className="text-xs text-gray-400 mt-4 m-0">Saved {timeAgo(selectedMatch.matchedAt)}</p>
+
+          {/* Skills */}
+          {(selectedMatch.job.skillsRequired?.length > 0 || selectedMatch.job.requirements?.length > 0) && (
+            <div className="mb-4">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Required Skills</p>
+              <div className="flex flex-wrap gap-1.5">
+                {(selectedMatch.job.skillsRequired?.length > 0 ? selectedMatch.job.skillsRequired : selectedMatch.job.requirements).map((s, i) => {
+                  const matched = selectedMatch.matchDetails?.matchedSkills?.includes(s);
+                  return (
+                    <span key={i} className="px-2.5 py-0.5 rounded-full text-xs font-semibold border"
+                      style={matched
+                        ? { background: '#c6f6d5', color: '#22543d', borderColor: '#9ae6b4' }
+                        : { background: '#fef3c7', color: '#92400e', borderColor: '#fcd34d' }}>
+                      {matched && '✓ '}{s}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {selectedMatch.job.description && (
+            <p className="text-sm text-gray-600 leading-relaxed m-0 mb-4">{selectedMatch.job.description}</p>
+          )}
+          <p className="text-xs text-gray-400 m-0">Saved {timeAgo(selectedMatch.matchedAt)}</p>
         </div>
+      )}
+
+      {/* Confirm remove modal */}
+      {deletingId && (
+        <ConfirmRemoveModal
+          onConfirm={handleDeleteConfirmed}
+          onCancel={() => setDeletingId(null)}
+        />
       )}
     </div>
   );

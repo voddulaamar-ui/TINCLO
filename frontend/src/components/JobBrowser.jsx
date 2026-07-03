@@ -1,4 +1,4 @@
-// JobBrowser — Live jobs, match scoring, filters, auto-refresh, WebSocket push
+// JobBrowser — Live jobs, match scoring, full filters, auto-refresh, WebSocket push
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { JobCard } from './JobCard';
@@ -23,8 +23,9 @@ const WORK_MODES = ['', 'Remote', 'Hybrid', 'Onsite'];
 const JOB_TYPES  = ['', 'Full-time', 'Part-time', 'Contract', 'Internship', 'Freelance'];
 
 const selCls = 'px-3 py-2 text-xs font-semibold bg-white/20 text-white border border-white/30 rounded-xl outline-none cursor-pointer focus:border-white/70 backdrop-blur-sm';
+const txtCls = 'px-3 py-2 text-xs font-semibold bg-white/20 text-white border border-white/30 rounded-xl outline-none placeholder:text-white/50 focus:border-white/70 backdrop-blur-sm min-w-0';
 
-// ── New jobs banner ──────────────────────────────────────────────────────────
+// ── New-jobs banner ──────────────────────────────────────────────────────────
 const NewJobsBanner = ({ count, onLoad, onDismiss }) => (
   <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl text-sm font-semibold text-white shadow-lg"
     style={{ background: 'linear-gradient(135deg,#48bb78,#38a169)' }}>
@@ -36,6 +37,7 @@ const NewJobsBanner = ({ count, onLoad, onDismiss }) => (
   </div>
 );
 
+// ── Main component ────────────────────────────────────────────────────────────
 export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, likedJobIds = [] }) => {
   const [allJobs, setAllJobs]             = useState([]);
   const [jobs, setJobs]                   = useState([]);
@@ -43,14 +45,18 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
   const [jobIndex, setJobIndex]           = useState(0);
   const [usingFallback, setUsingFallback] = useState(false);
 
-  // ── Search & filters ─────────────────────────────────────────────────────
-  const [search, setSearch]           = useState('');
-  const [searchLoc, setSearchLoc]     = useState('India');
-  const [timeFilter, setTimeFilter]   = useState('all');
+  // ── Primary search ────────────────────────────────────────────────────────
+  const [search, setSearch]       = useState('');
+  const [searchLoc, setSearchLoc] = useState('India');
+
+  // ── Advanced filters ──────────────────────────────────────────────────────
+  const [showFilters, setShowFilters]       = useState(false);
+  const [timeFilter, setTimeFilter]         = useState('all');
   const [filterDomain, setFilterDomain]     = useState('');
   const [filterWorkMode, setFilterWorkMode] = useState('');
   const [filterJobType, setFilterJobType]   = useState('');
-  const [showFilters, setShowFilters] = useState(false);
+  const [filterCompany, setFilterCompany]   = useState('');  // ← NEW: filter by company name
+  const [filterSkill, setFilterSkill]       = useState('');  // ← NEW: filter by skill / keyword
 
   // ── Real-time ─────────────────────────────────────────────────────────────
   const [pendingCount, setPendingCount] = useState(0);
@@ -62,21 +68,41 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
   const refreshRef = useRef(null);
   const labelRef   = useRef(null);
 
-  // ── Get user profile for scoring ─────────────────────────────────────────
-  const userProfile = currentUser ? JSON.parse(localStorage.getItem('tinclo_current_user') || 'null') : null;
+  // ── User profile for scoring ──────────────────────────────────────────────
+  const userProfile = currentUser
+    ? (() => { try { return JSON.parse(localStorage.getItem('tinclo_current_user') || 'null'); } catch { return null; } })()
+    : null;
 
-  // ── Apply all filters + scoring ──────────────────────────────────────────
-  const applyAll = useCallback((raw, tFilter, fDomain, fWorkMode, fJobType) => {
+  // ── Check whether any advanced filter is active ───────────────────────────
+  const hasAdvancedFilter = filterDomain || filterWorkMode || filterJobType || filterCompany || filterSkill;
+
+  // ── Apply all filters + scoring ───────────────────────────────────────────
+  const applyAll = useCallback((raw, tFilter, fDomain, fWorkMode, fJobType, fCompany, fSkill) => {
     let result = sortNewest(raw);
     result = filterByTime(result, tFilter);
     if (fDomain)   result = result.filter(j => (j.domain || '').toLowerCase().includes(fDomain.toLowerCase()));
     if (fWorkMode) result = result.filter(j => j.workMode === fWorkMode);
     if (fJobType)  result = result.filter(j => (j.jobType || '').toLowerCase().includes(fJobType.toLowerCase()));
-    // Score and sort by match (highest first), then date
+    if (fCompany)  result = result.filter(j => (j.company || '').toLowerCase().includes(fCompany.toLowerCase()));
+    if (fSkill)    result = result.filter(j => {
+      const q = fSkill.toLowerCase();
+      return (j.title || '').toLowerCase().includes(q)
+        || (j.skillsRequired || []).some(s => s.toLowerCase().includes(q))
+        || (j.requirements   || []).some(s => s.toLowerCase().includes(q))
+        || (j.tags           || []).some(t => t.toLowerCase().includes(q))
+        || (j.description    || '').toLowerCase().includes(q);
+    });
     const scored = scoreJobs(result, userProfile);
     return sortByMatchThenDate(scored);
   }, [userProfile]);
 
+  const clearAllFilters = () => {
+    setFilterDomain(''); setFilterWorkMode(''); setFilterJobType('');
+    setFilterCompany(''); setFilterSkill(''); setTimeFilter('all');
+    setJobIndex(0);
+  };
+
+  // ── Merge incoming jobs (dedup by id) ─────────────────────────────────────
   const mergeJobs = useCallback((incoming) => {
     setAllJobs(prev => {
       const map = new Map(prev.map(j => [String(j._id || j.id), j]));
@@ -91,12 +117,13 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
     setPendingCount(0); setPendingJobs(null); setJobIndex(0);
   }, [pendingJobs, mergeJobs]);
 
+  // ── Core load ─────────────────────────────────────────────────────────────
   const loadJobs = useCallback(async (query, location, silent = false) => {
     if (!silent) setLoading(true);
     setUsingFallback(false);
     try {
       const result = await ApiService.fetchExternalJobs({ query: query || 'software developer', location: location || 'India' });
-      const fetched = result.jobs || result; // handle both { jobs:[] } and []
+      const fetched = result.jobs || result;
       if (!fetched.length) throw new Error('No jobs');
       mergeJobs(fetched);
       setRefreshedAt(new Date());
@@ -105,7 +132,7 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
       console.warn('Fallback to mock:', err.message);
       const q = (query || '').toLowerCase();
       const filtered = q && q !== 'software developer'
-        ? MOCK_JOBS.filter(j => j.title.toLowerCase().includes(q) || (j.tags||[]).some(t => t.toLowerCase().includes(q)))
+        ? MOCK_JOBS.filter(j => j.title.toLowerCase().includes(q) || (j.tags || []).some(t => t.toLowerCase().includes(q)))
         : MOCK_JOBS;
       mergeJobs(filtered.length ? filtered : MOCK_JOBS);
       setUsingFallback(true);
@@ -115,7 +142,7 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
     }
   }, [mergeJobs]);
 
-  // ── Initial load ─────────────────────────────────────────────────────────
+  // ── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
     const boot = async () => {
       setLoading(true);
@@ -126,8 +153,8 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
       try {
         const results = await Promise.all([
           ApiService.fetchExternalJobs({ query: 'software developer', location: 'India' }),
-          ApiService.fetchExternalJobs({ query: 'data scientist', location: 'India' }),
-          ApiService.fetchExternalJobs({ query: 'product manager', location: 'India' }),
+          ApiService.fetchExternalJobs({ query: 'data scientist',     location: 'India' }),
+          ApiService.fetchExternalJobs({ query: 'product manager',    location: 'India' }),
         ]);
         const seen = new Set(); const merged = [];
         for (const r of results) {
@@ -145,24 +172,26 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
     boot();
   }, []); // eslint-disable-line
 
-  // ── Auto-refresh ─────────────────────────────────────────────────────────
+  // ── Auto-refresh every 5 min ──────────────────────────────────────────────
   useEffect(() => {
-    refreshRef.current = setInterval(() => loadJobs(search || 'software developer', searchLoc || 'India', true), AUTO_REFRESH_MS);
+    refreshRef.current = setInterval(() =>
+      loadJobs(search || 'software developer', searchLoc || 'India', true), AUTO_REFRESH_MS);
     return () => clearInterval(refreshRef.current);
   }, [loadJobs, search, searchLoc]);
 
-  // ── Refresh label ─────────────────────────────────────────────────────────
+  // ── "Updated X ago" label ─────────────────────────────────────────────────
   useEffect(() => {
     const upd = () => {
       if (!refreshedAt) return;
       const s = Math.floor((Date.now() - refreshedAt.getTime()) / 1000);
-      setRefreshLabel(s < 10 ? 'just now' : s < 60 ? `${s}s ago` : `${Math.floor(s/60)}m ago`);
+      setRefreshLabel(s < 10 ? 'just now' : s < 60 ? `${s}s ago` : `${Math.floor(s / 60)}m ago`);
     };
-    upd(); labelRef.current = setInterval(upd, 30_000);
+    upd();
+    labelRef.current = setInterval(upd, 30_000);
     return () => clearInterval(labelRef.current);
   }, [refreshedAt]);
 
-  // ── WebSocket ─────────────────────────────────────────────────────────────
+  // ── WebSocket: new-job push ───────────────────────────────────────────────
   useEffect(() => {
     const socket = SocketService.getSocket();
     if (!socket) return;
@@ -182,17 +211,17 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
     return () => SocketService.offNewJobs();
   }, []); // eslint-disable-line
 
-  // ── Re-score when allJobs or filters change ───────────────────────────────
+  // ── Re-apply filters + scoring whenever inputs change ─────────────────────
   useEffect(() => {
-    setJobs(applyAll(allJobs, timeFilter, filterDomain, filterWorkMode, filterJobType));
-  }, [allJobs, timeFilter, filterDomain, filterWorkMode, filterJobType, applyAll]);
+    setJobs(applyAll(allJobs, timeFilter, filterDomain, filterWorkMode, filterJobType, filterCompany, filterSkill));
+  }, [allJobs, timeFilter, filterDomain, filterWorkMode, filterJobType, filterCompany, filterSkill, applyAll]);
 
-  // ── Skip liked jobs ───────────────────────────────────────────────────────
+  // ── Skip already-liked jobs ───────────────────────────────────────────────
   const nextUnliked = (start, list) => {
     let i = start;
     while (i < list.length) {
       const id = list[i]._id || list[i].id;
-      if (!id || !likedJobIds.includes(id)) break;
+      if (!id || !likedJobIds.includes(String(id))) break;
       i++;
     }
     return i;
@@ -203,6 +232,7 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
   const isComplete     = !loading && effectiveIndex >= jobs.length;
   const newSinceCount  = lastVisit ? allJobs.filter(j => isNewSinceLastVisit(j, lastVisit)).length : 0;
 
+  // ── Track job view ────────────────────────────────────────────────────────
   useEffect(() => {
     if (currentJob) {
       const id = currentJob._id || currentJob.id;
@@ -215,52 +245,113 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
   const handleLike   = () => { if (currentJob) { onMatch(currentJob); setJobIndex(nextUnliked(effectiveIndex + 1, jobs)); } };
   const handleSkip   = () => { onSkip(); setJobIndex(nextUnliked(effectiveIndex + 1, jobs)); };
 
-  // Filter counts
-  const fc = { all: allJobs.length, newest: filterByTime(allJobs,'newest').length, today: filterByTime(allJobs,'today').length, week: filterByTime(allJobs,'week').length };
+  // Filter counts for time-filter pills
+  const fc = {
+    all:    allJobs.length,
+    newest: filterByTime(allJobs, 'newest').length,
+    today:  filterByTime(allJobs, 'today').length,
+    week:   filterByTime(allJobs, 'week').length,
+  };
 
+  // ── RENDER ────────────────────────────────────────────────────────────────
   return (
     <div className="h-full max-w-[860px] mx-auto flex flex-col min-h-0 gap-2">
 
       {/* ── Search + filter bar ── */}
-      <div className="rounded-3xl p-4 text-white shrink-0" style={{ background: 'linear-gradient(135deg,#667eea 0%,#764ba2 100%)', boxShadow: '0 8px 30px rgba(102,126,234,0.4)' }}>
+      <div className="rounded-3xl p-4 text-white shrink-0"
+        style={{ background: 'linear-gradient(135deg,#667eea 0%,#764ba2 100%)', boxShadow: '0 8px 30px rgba(102,126,234,0.4)' }}>
+
+        {/* Primary search row */}
         <form className="mb-3" onSubmit={handleSearch}>
           <div className="flex gap-2.5 flex-wrap">
             <div className="flex-[1.35_1_280px] min-w-[260px] flex items-center bg-white/20 border-2 border-white/30 rounded-2xl px-4 gap-2.5 backdrop-blur-md transition-all focus-within:border-white/70">
               <span className="shrink-0">🔍</span>
-              <input type="text" className="w-full min-w-0 border-none bg-transparent py-3 text-sm text-white outline-none font-medium placeholder:text-white/70" placeholder="Job title, skills…" value={search} onChange={e => setSearch(e.target.value)} />
+              <input type="text"
+                className="w-full min-w-0 border-none bg-transparent py-3 text-sm text-white outline-none font-medium placeholder:text-white/70"
+                placeholder="Job title, skills…"
+                value={search} onChange={e => setSearch(e.target.value)} />
             </div>
             <div className="flex-[1_1_200px] min-w-[180px] flex items-center bg-white/20 border-2 border-white/30 rounded-2xl px-4 gap-2.5 backdrop-blur-md transition-all focus-within:border-white/70">
               <span className="shrink-0">📍</span>
-              <input type="text" className="w-full min-w-0 border-none bg-transparent py-3 text-sm text-white outline-none font-medium placeholder:text-white/70" placeholder="Location" value={searchLoc} onChange={e => setSearchLoc(e.target.value)} />
+              <input type="text"
+                className="w-full min-w-0 border-none bg-transparent py-3 text-sm text-white outline-none font-medium placeholder:text-white/70"
+                placeholder="Location"
+                value={searchLoc} onChange={e => setSearchLoc(e.target.value)} />
             </div>
-            <button type="submit" disabled={loading} className="py-3 px-5 bg-white text-indigo-600 text-sm font-extrabold border-none rounded-2xl cursor-pointer whitespace-nowrap transition-all shadow-[0_4px_15px_rgba(0,0,0,0.2)] hover:-translate-y-0.5 disabled:opacity-70">
+            <button type="submit" disabled={loading}
+              className="py-3 px-5 bg-white text-indigo-600 text-sm font-extrabold border-none rounded-2xl cursor-pointer whitespace-nowrap transition-all shadow-[0_4px_15px_rgba(0,0,0,0.2)] hover:-translate-y-0.5 disabled:opacity-70">
               {loading ? '⏳' : '🚀 Search'}
             </button>
-            <button type="button" className="py-3 px-4 bg-white/20 text-white text-sm font-bold border border-white/30 rounded-2xl cursor-pointer hover:bg-white/30 transition-all"
+            <button type="button"
+              className={`py-3 px-4 text-white text-sm font-bold border rounded-2xl cursor-pointer transition-all ${hasAdvancedFilter ? 'bg-amber-400/40 border-amber-300' : 'bg-white/20 border-white/30 hover:bg-white/30'}`}
               onClick={() => setShowFilters(v => !v)}>
-              {showFilters ? '✕ Filters' : '⚙️ Filters'}
+              {showFilters ? '✕ Filters' : `⚙️ Filters${hasAdvancedFilter ? ' •' : ''}`}
             </button>
           </div>
         </form>
 
-        {/* Advanced filters */}
+        {/* Advanced filters panel */}
         {showFilters && (
-          <div className="flex gap-2 flex-wrap mb-3 pt-3 border-t border-white/20">
-            <select value={filterDomain} onChange={e => { setFilterDomain(e.target.value); setJobIndex(0); }} className={selCls}>
-              <option value="">All Domains</option>
-              {DOMAINS.filter(Boolean).map(d => <option key={d} value={d}>{d}</option>)}
-            </select>
-            <select value={filterWorkMode} onChange={e => { setFilterWorkMode(e.target.value); setJobIndex(0); }} className={selCls}>
-              <option value="">Any Work Mode</option>
-              {WORK_MODES.filter(Boolean).map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-            <select value={filterJobType} onChange={e => { setFilterJobType(e.target.value); setJobIndex(0); }} className={selCls}>
-              <option value="">Any Job Type</option>
-              {JOB_TYPES.filter(Boolean).map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-            {(filterDomain || filterWorkMode || filterJobType) && (
-              <button type="button" className="px-3 py-2 text-xs font-bold bg-white/20 text-white border border-white/30 rounded-xl cursor-pointer hover:bg-white/30"
-                onClick={() => { setFilterDomain(''); setFilterWorkMode(''); setFilterJobType(''); setJobIndex(0); }}>✕ Clear</button>
+          <div className="pt-3 pb-1 border-t border-white/20 mb-3">
+            <div className="flex gap-2 flex-wrap mb-2">
+              {/* Domain */}
+              <select value={filterDomain} onChange={e => { setFilterDomain(e.target.value); setJobIndex(0); }} className={selCls}>
+                <option value="">All Domains</option>
+                {DOMAINS.filter(Boolean).map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+
+              {/* Work Mode */}
+              <select value={filterWorkMode} onChange={e => { setFilterWorkMode(e.target.value); setJobIndex(0); }} className={selCls}>
+                <option value="">Any Work Mode</option>
+                {WORK_MODES.filter(Boolean).map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+
+              {/* Job Type */}
+              <select value={filterJobType} onChange={e => { setFilterJobType(e.target.value); setJobIndex(0); }} className={selCls}>
+                <option value="">Any Job Type</option>
+                {JOB_TYPES.filter(Boolean).map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+
+              {/* Company */}
+              <input
+                type="text"
+                className={txtCls}
+                style={{ width: '130px' }}
+                placeholder="🏢 Company…"
+                value={filterCompany}
+                onChange={e => { setFilterCompany(e.target.value); setJobIndex(0); }}
+              />
+
+              {/* Skill / keyword */}
+              <input
+                type="text"
+                className={txtCls}
+                style={{ width: '130px' }}
+                placeholder="🛠 Skill / keyword…"
+                value={filterSkill}
+                onChange={e => { setFilterSkill(e.target.value); setJobIndex(0); }}
+              />
+
+              {/* Clear button — only shown when a filter is active */}
+              {hasAdvancedFilter && (
+                <button type="button"
+                  className="px-3 py-2 text-xs font-bold bg-red-400/25 text-white border border-red-300/40 rounded-xl cursor-pointer hover:bg-red-400/40 transition-all"
+                  onClick={clearAllFilters}>
+                  ✕ Clear all
+                </button>
+              )}
+            </div>
+
+            {/* Active filter chips */}
+            {hasAdvancedFilter && (
+              <div className="flex gap-1.5 flex-wrap">
+                {filterDomain   && <span className="px-2.5 py-0.5 bg-white/20 rounded-full text-[10px] font-bold">🎯 {filterDomain}</span>}
+                {filterWorkMode && <span className="px-2.5 py-0.5 bg-white/20 rounded-full text-[10px] font-bold">🏠 {filterWorkMode}</span>}
+                {filterJobType  && <span className="px-2.5 py-0.5 bg-white/20 rounded-full text-[10px] font-bold">⏰ {filterJobType}</span>}
+                {filterCompany  && <span className="px-2.5 py-0.5 bg-white/20 rounded-full text-[10px] font-bold">🏢 {filterCompany}</span>}
+                {filterSkill    && <span className="px-2.5 py-0.5 bg-white/20 rounded-full text-[10px] font-bold">🛠 {filterSkill}</span>}
+                <span className="px-2.5 py-0.5 bg-white/10 rounded-full text-[10px] text-white/60">→ {jobs.length} results</span>
+              </div>
             )}
           </div>
         )}
@@ -275,7 +366,7 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
           ))}
         </div>
 
-        {/* Source + status row */}
+        {/* Source pills + refresh status */}
         <div className="flex items-center gap-2 flex-wrap text-[11px]">
           {[['#ff6b35','Naukri'],['#0077b5','LinkedIn'],['#2164f3','Indeed'],['#0caa41','Glassdoor'],['#38a169','Recruiter']].map(([bg, label]) => (
             <span key={label} className="text-white font-bold py-[3px] px-2.5 rounded-xl" style={{ background: bg }}>{label}</span>
@@ -290,14 +381,26 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
           )}
         </div>
 
-        {newSinceCount > 0 && <div className="mt-2 text-[11px] text-amber-300 font-bold">⭐ {newSinceCount} new since your last visit</div>}
-        {usingFallback && <div className="mt-2 px-3 py-1.5 bg-white/15 rounded-[10px] text-xs text-white/80">📋 Showing {allJobs.length} curated jobs · Start backend for live jobs</div>}
+        {newSinceCount > 0 && (
+          <div className="mt-2 text-[11px] text-amber-300 font-bold">⭐ {newSinceCount} new since your last visit</div>
+        )}
+        {usingFallback && (
+          <div className="mt-2 px-3 py-1.5 bg-white/15 rounded-[10px] text-xs text-white/80">
+            📋 Showing {allJobs.length} curated jobs · Start backend for live jobs
+          </div>
+        )}
       </div>
 
-      {/* Pending jobs banner */}
-      {pendingCount > 0 && <NewJobsBanner count={pendingCount} onLoad={() => { commitPending(); setJobIndex(0); }} onDismiss={() => { setPendingCount(0); setPendingJobs(null); }} />}
+      {/* Pending new-jobs banner */}
+      {pendingCount > 0 && (
+        <NewJobsBanner
+          count={pendingCount}
+          onLoad={() => { commitPending(); setJobIndex(0); }}
+          onDismiss={() => { setPendingCount(0); setPendingJobs(null); }}
+        />
+      )}
 
-      {/* Loading */}
+      {/* Loading spinner */}
       {loading && (
         <div className="flex flex-col items-center gap-3 py-10 text-slate-500 text-[15px]">
           <div className="w-9 h-9 border-[3px] border-slate-200 border-t-indigo-500 rounded-full animate-spin" />
@@ -305,13 +408,17 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
         </div>
       )}
 
-      {/* Empty filter state */}
+      {/* Empty filter result */}
       {!loading && !isComplete && jobs.length === 0 && allJobs.length > 0 && (
         <div className="flex flex-col items-center gap-3 py-12 text-center px-5">
           <div className="text-5xl">🔍</div>
-          <h3 className="text-lg font-bold text-gray-700 m-0">No jobs match this filter</h3>
-          <button className="mt-2 px-6 py-2.5 text-white font-semibold rounded-xl border-none cursor-pointer text-sm" style={{ background: 'linear-gradient(135deg,#667eea,#764ba2)' }}
-            onClick={() => { setTimeFilter('all'); setFilterDomain(''); setFilterWorkMode(''); setFilterJobType(''); setJobIndex(0); }}>Clear Filters</button>
+          <h3 className="text-lg font-bold text-gray-700 m-0">No jobs match these filters</h3>
+          <p className="text-sm text-gray-400 m-0">Try adjusting or clearing filters to see more results.</p>
+          <button className="mt-2 px-6 py-2.5 text-white font-semibold rounded-xl border-none cursor-pointer text-sm"
+            style={{ background: 'linear-gradient(135deg,#667eea,#764ba2)' }}
+            onClick={clearAllFilters}>
+            Clear All Filters
+          </button>
         </div>
       )}
 
@@ -322,9 +429,15 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
             <h2 className="text-[30px] font-bold mt-0 mb-4 text-gray-800">🎉 All Done!</h2>
             <p className="text-gray-500 mt-0 mb-8">You've reviewed all {jobs.length} job postings.</p>
             <div className="flex gap-3 justify-center flex-wrap">
-              <button className="text-white py-3.5 px-8 text-sm font-semibold border-none rounded-xl cursor-pointer transition-all shadow-[0_4px_12px_rgba(102,126,234,0.35)] hover:-translate-y-0.5" style={{ background: 'linear-gradient(135deg,#667eea,#764ba2)' }} onClick={onNavigateToMatches}>View Matches</button>
+              <button className="text-white py-3.5 px-8 text-sm font-semibold border-none rounded-xl cursor-pointer transition-all shadow-[0_4px_12px_rgba(102,126,234,0.35)] hover:-translate-y-0.5"
+                style={{ background: 'linear-gradient(135deg,#667eea,#764ba2)' }}
+                onClick={onNavigateToMatches}>
+                View Matches
+              </button>
               <button className="bg-white text-indigo-500 py-3.5 px-8 text-sm font-semibold border-2 border-indigo-500 rounded-xl cursor-pointer hover:bg-indigo-50"
-                onClick={() => { mergeJobs(MOCK_JOBS); setJobIndex(0); setUsingFallback(true); }}>🔄 Browse Again</button>
+                onClick={() => { mergeJobs(MOCK_JOBS); setJobIndex(0); setUsingFallback(true); }}>
+                🔄 Browse Again
+              </button>
             </div>
           </div>
         </div>
@@ -337,12 +450,24 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
             <span>Job {effectiveIndex + 1} of {jobs.length}</span>
             {!usingFallback && <span className="text-xs bg-green-50 text-green-700 py-0.5 px-2.5 rounded-xl font-semibold">🟢 Live</span>}
             {currentJob.matchScore > 0 && (
-              <span className="text-xs font-bold px-2.5 py-0.5 rounded-xl" style={{ background: '#e0e7ff', color: '#3730a3' }}>🎯 {currentJob.matchScore}% match</span>
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-xl" style={{ background: '#e0e7ff', color: '#3730a3' }}>
+                🎯 {currentJob.matchScore}% match
+              </span>
             )}
-            {newSinceCount > 0 && <span className="text-xs bg-amber-50 text-amber-700 py-0.5 px-2.5 rounded-xl font-semibold">🕐 {newSinceCount} new since last visit</span>}
+            {newSinceCount > 0 && (
+              <span className="text-xs bg-amber-50 text-amber-700 py-0.5 px-2.5 rounded-xl font-semibold">
+                🕐 {newSinceCount} new since last visit
+              </span>
+            )}
           </div>
           <div className="min-h-0 flex-1 flex items-start justify-center overflow-hidden">
-            <JobCard job={currentJob} onLike={handleLike} onDislike={handleSkip} currentUser={currentUser} isNewSinceVisit={isNewSinceLastVisit(currentJob, lastVisit)} />
+            <JobCard
+              job={currentJob}
+              onLike={handleLike}
+              onDislike={handleSkip}
+              currentUser={currentUser}
+              isNewSinceVisit={isNewSinceLastVisit(currentJob, lastVisit)}
+            />
           </div>
         </>
       )}

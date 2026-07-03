@@ -64,6 +64,7 @@ export default function ProfilePage() {
     name: '', email: '', phone: '', location: '', bio: '',
     skills: [], domain: '', experienceYears: '', preferredLocations: [],
     expectedSalary: '', linkedin: '', github: '',
+    profilePicture: '', resumeUrl: '',
     education: [], projects: [],
   });
   const [passwords, setPasswords] = useState({ current: '', newPass: '', confirm: '' });
@@ -86,6 +87,7 @@ export default function ProfilePage() {
         preferredLocations: u.preferredLocations || [],
         expectedSalary: u.expectedSalary || '',
         linkedin: u.linkedin || '', github: u.github || '',
+        profilePicture: u.profilePicture || '', resumeUrl: u.resumeUrl || '',
         education: u.education || [], projects: u.projects || [],
       };
       setForm(f);
@@ -249,7 +251,7 @@ export default function ProfilePage() {
                     </div>
                   </Section>
 
-                  <Section title="Social Links" icon="🔗">
+                  <Section title="Social Links & Media" icon="🔗">
                     <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
                       <div className="flex flex-col gap-1.5">
                         <label className="text-[13px] font-bold text-gray-700">LinkedIn URL</label>
@@ -259,7 +261,26 @@ export default function ProfilePage() {
                         <label className="text-[13px] font-bold text-gray-700">GitHub URL</label>
                         <input type="url" value={form.github} onChange={e => setField('github', e.target.value)} className={inputCls} placeholder="https://github.com/..." />
                       </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[13px] font-bold text-gray-700">Profile Picture URL</label>
+                        <input type="url" value={form.profilePicture} onChange={e => setField('profilePicture', e.target.value)} className={inputCls} placeholder="https://example.com/photo.jpg" />
+                        {form.profilePicture && (
+                          <img src={form.profilePicture} alt="Preview" className="mt-1 w-14 h-14 rounded-full object-cover border-2 border-indigo-200 shadow-sm" onError={e => { e.target.style.display = 'none'; }} />
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[13px] font-bold text-gray-700">Resume URL</label>
+                        <input type="url" value={form.resumeUrl} onChange={e => setField('resumeUrl', e.target.value)} className={inputCls} placeholder="https://drive.google.com/..." />
+                        {form.resumeUrl && (
+                          <a href={form.resumeUrl} target="_blank" rel="noopener noreferrer" className="mt-1 text-xs text-indigo-600 hover:underline font-semibold flex items-center gap-1">
+                            📄 View Resume ↗
+                          </a>
+                        )}
+                      </div>
                     </div>
+                    <p className="text-xs text-gray-400 mt-3 m-0">
+                      💡 Use Google Drive, Dropbox, or any public URL for your resume. Recruiters will see this.
+                    </p>
                   </Section>
                 </>
               )}
