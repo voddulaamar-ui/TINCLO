@@ -50,13 +50,15 @@ const ApiService = {
   },
 
   // ── Jobs (public browse) ──────────────────────────────────────────────────
-  async fetchJobs({ search, domain, workMode, jobType, location, sort, page = 1 } = {}) {
+  async fetchJobs({ search, domain, workMode, jobType, location, company, salary, sort, page = 1 } = {}) {
     const p = new URLSearchParams();
     if (search)   p.set('search',   search);
     if (domain)   p.set('domain',   domain);
     if (workMode) p.set('workMode', workMode);
     if (jobType)  p.set('jobType',  jobType);
     if (location) p.set('location', location);
+    if (company)  p.set('company',  company);
+    if (salary)   p.set('salary',   salary);
     if (sort)     p.set('sort',     sort);
     p.set('page', page);
     return apiFetch(`/jobs?${p}`);

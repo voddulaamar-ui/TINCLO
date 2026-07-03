@@ -10,12 +10,12 @@ router.get('/', async (req, res) => {
   try {
     const {
       search, domain, workMode, jobType, location,
-      minExp, maxExp, status, sort, page = 1, limit = 50,
+      company, salary, minExp, maxExp, status, sort, page = 1, limit = 50,
     } = req.query;
 
     const filter = {};
 
-    // Text search across title, company, description
+    // Text search across title, company, description, skills
     if (search) {
       const regex = new RegExp(search, 'i');
       filter.$or = [
@@ -28,12 +28,14 @@ router.get('/', async (req, res) => {
       ];
     }
 
-    if (domain)   filter.domain  = new RegExp(domain, 'i');
+    if (domain)   filter.domain   = new RegExp(domain, 'i');
     if (workMode) filter.workMode = workMode;
     if (jobType)  filter.jobType  = jobType;
     if (location) filter.location = new RegExp(location, 'i');
+    if (company)  filter.company  = new RegExp(company, 'i');
+    if (salary)   filter.salary   = new RegExp(salary, 'i');
     if (status)   filter.status   = status;
-    else          filter.status   = 'open'; // default: only open jobs
+    else          filter.status   = 'open';
 
     // Experience range filter (numeric years embedded in string like "2-4 years")
     if (minExp || maxExp) {
@@ -45,7 +47,9 @@ router.get('/', async (req, res) => {
       ? { createdAt: 1 }
       : sort === 'salary'
         ? { salary: -1 }
-        : { createdAt: -1 }; // default newest first
+        : sort === 'match'
+          ? { createdAt: -1 }  // match sorting done client-side
+          : { createdAt: -1 }; // default: newest first
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 

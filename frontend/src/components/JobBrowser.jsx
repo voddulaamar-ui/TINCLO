@@ -25,7 +25,33 @@ const JOB_TYPES  = ['', 'Full-time', 'Part-time', 'Contract', 'Internship', 'Fre
 const selCls = 'px-3 py-2 text-xs font-semibold bg-white/20 text-white border border-white/30 rounded-xl outline-none cursor-pointer focus:border-white/70 backdrop-blur-sm';
 const txtCls = 'px-3 py-2 text-xs font-semibold bg-white/20 text-white border border-white/30 rounded-xl outline-none placeholder:text-white/50 focus:border-white/70 backdrop-blur-sm min-w-0';
 
-// ── New-jobs banner ──────────────────────────────────────────────────────────
+// ── Skipped-job persistence helpers ──────────────────────────────────────────
+const SKIPPED_KEY = 'tinclo_skipped_jobs';
+
+function loadSkipped(userId) {
+  try {
+    const all = JSON.parse(localStorage.getItem(SKIPPED_KEY) || '{}');
+    return new Set(all[userId] || []);
+  } catch { return new Set(); }
+}
+
+function saveSkipped(userId, set) {
+  try {
+    const all = JSON.parse(localStorage.getItem(SKIPPED_KEY) || '{}');
+    all[userId] = Array.from(set).slice(-500); // cap at 500 skipped ids
+    localStorage.setItem(SKIPPED_KEY, JSON.stringify(all));
+  } catch { /* quota */ }
+}
+
+function clearSkipped(userId) {
+  try {
+    const all = JSON.parse(localStorage.getItem(SKIPPED_KEY) || '{}');
+    delete all[userId];
+    localStorage.setItem(SKIPPED_KEY, JSON.stringify(all));
+  } catch { /* ignore */ }
+}
+
+// ── New-jobs banner ───────────────────────────────────────────────────────────
 const NewJobsBanner = ({ count, onLoad, onDismiss }) => (
   <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl text-sm font-semibold text-white shadow-lg"
     style={{ background: 'linear-gradient(135deg,#48bb78,#38a169)' }}>
@@ -55,8 +81,9 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
   const [filterDomain, setFilterDomain]     = useState('');
   const [filterWorkMode, setFilterWorkMode] = useState('');
   const [filterJobType, setFilterJobType]   = useState('');
-  const [filterCompany, setFilterCompany]   = useState('');  // ← NEW: filter by company name
-  const [filterSkill, setFilterSkill]       = useState('');  // ← NEW: filter by skill / keyword
+  const [filterCompany, setFilterCompany]   = useState('');
+  const [filterSkill, setFilterSkill]       = useState('');
+  const [filterSalary, setFilterSalary]     = useState(''); // e.g. "10" = min 10L
 
   // ── Real-time ─────────────────────────────────────────────────────────────
   const [pendingCount, setPendingCount] = useState(0);
@@ -73,11 +100,15 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
     ? (() => { try { return JSON.parse(localStorage.getItem('tinclo_current_user') || 'null'); } catch { return null; } })()
     : null;
 
+  // ── Skipped jobs — persisted per user ────────────────────────────────────
+  const userId = currentUser?.id || 'guest';
+  const [skippedIds, setSkippedIds] = useState(() => loadSkipped(currentUser?.id || 'guest'));
+
   // ── Check whether any advanced filter is active ───────────────────────────
-  const hasAdvancedFilter = filterDomain || filterWorkMode || filterJobType || filterCompany || filterSkill;
+  const hasAdvancedFilter = filterDomain || filterWorkMode || filterJobType || filterCompany || filterSkill || filterSalary;
 
   // ── Apply all filters + scoring ───────────────────────────────────────────
-  const applyAll = useCallback((raw, tFilter, fDomain, fWorkMode, fJobType, fCompany, fSkill) => {
+  const applyAll = useCallback((raw, tFilter, fDomain, fWorkMode, fJobType, fCompany, fSkill, fSalary) => {
     let result = sortNewest(raw);
     result = filterByTime(result, tFilter);
     if (fDomain)   result = result.filter(j => (j.domain || '').toLowerCase().includes(fDomain.toLowerCase()));
@@ -92,13 +123,18 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
         || (j.tags           || []).some(t => t.toLowerCase().includes(q))
         || (j.description    || '').toLowerCase().includes(q);
     });
+    // Salary filter — match jobs whose salary string contains the keyword (e.g. "10L", "remote", "50000")
+    if (fSalary) {
+      const sq = fSalary.toLowerCase().trim();
+      result = result.filter(j => (j.salary || '').toLowerCase().includes(sq));
+    }
     const scored = scoreJobs(result, userProfile);
     return sortByMatchThenDate(scored);
   }, [userProfile]);
 
   const clearAllFilters = () => {
     setFilterDomain(''); setFilterWorkMode(''); setFilterJobType('');
-    setFilterCompany(''); setFilterSkill(''); setTimeFilter('all');
+    setFilterCompany(''); setFilterSkill(''); setFilterSalary(''); setTimeFilter('all');
     setJobIndex(0);
   };
 
@@ -213,15 +249,15 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
 
   // ── Re-apply filters + scoring whenever inputs change ─────────────────────
   useEffect(() => {
-    setJobs(applyAll(allJobs, timeFilter, filterDomain, filterWorkMode, filterJobType, filterCompany, filterSkill));
-  }, [allJobs, timeFilter, filterDomain, filterWorkMode, filterJobType, filterCompany, filterSkill, applyAll]);
+    setJobs(applyAll(allJobs, timeFilter, filterDomain, filterWorkMode, filterJobType, filterCompany, filterSkill, filterSalary));
+  }, [allJobs, timeFilter, filterDomain, filterWorkMode, filterJobType, filterCompany, filterSkill, filterSalary, applyAll]);
 
-  // ── Skip already-liked jobs ───────────────────────────────────────────────
+  // ── Skip already-liked OR already-skipped jobs ───────────────────────────
   const nextUnliked = (start, list) => {
     let i = start;
     while (i < list.length) {
-      const id = list[i]._id || list[i].id;
-      if (!id || !likedJobIds.includes(String(id))) break;
+      const id = String(list[i]._id || list[i].id);
+      if (!likedJobIds.includes(id) && !skippedIds.has(id)) break;
       i++;
     }
     return i;
@@ -243,7 +279,22 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
 
   const handleSearch = (e) => { e.preventDefault(); loadJobs(search || 'software developer', searchLoc || 'India'); };
   const handleLike   = () => { if (currentJob) { onMatch(currentJob); setJobIndex(nextUnliked(effectiveIndex + 1, jobs)); } };
-  const handleSkip   = () => { onSkip(); setJobIndex(nextUnliked(effectiveIndex + 1, jobs)); };
+  const handleSkip   = () => {
+    if (currentJob) {
+      const id = String(currentJob._id || currentJob.id);
+      const next = new Set(skippedIds);
+      next.add(id);
+      setSkippedIds(next);
+      saveSkipped(userId, next);
+    }
+    onSkip();
+    setJobIndex(nextUnliked(effectiveIndex + 1, jobs));
+  };
+  const handleResetSwipes = () => {
+    clearSkipped(userId);
+    setSkippedIds(new Set());
+    setJobIndex(0);
+  };
 
   // Filter counts for time-filter pills
   const fc = {
@@ -332,6 +383,17 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
                 onChange={e => { setFilterSkill(e.target.value); setJobIndex(0); }}
               />
 
+              {/* Salary keyword */}
+              <input
+                type="text"
+                className={txtCls}
+                style={{ width: '120px' }}
+                placeholder="💰 Salary…"
+                value={filterSalary}
+                onChange={e => { setFilterSalary(e.target.value); setJobIndex(0); }}
+                title="e.g. 10L, 50000, Remote"
+              />
+
               {/* Clear button — only shown when a filter is active */}
               {hasAdvancedFilter && (
                 <button type="button"
@@ -350,6 +412,7 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
                 {filterJobType  && <span className="px-2.5 py-0.5 bg-white/20 rounded-full text-[10px] font-bold">⏰ {filterJobType}</span>}
                 {filterCompany  && <span className="px-2.5 py-0.5 bg-white/20 rounded-full text-[10px] font-bold">🏢 {filterCompany}</span>}
                 {filterSkill    && <span className="px-2.5 py-0.5 bg-white/20 rounded-full text-[10px] font-bold">🛠 {filterSkill}</span>}
+                {filterSalary   && <span className="px-2.5 py-0.5 bg-white/20 rounded-full text-[10px] font-bold">💰 {filterSalary}</span>}
                 <span className="px-2.5 py-0.5 bg-white/10 rounded-full text-[10px] text-white/60">→ {jobs.length} results</span>
               </div>
             )}
@@ -383,6 +446,17 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
 
         {newSinceCount > 0 && (
           <div className="mt-2 text-[11px] text-amber-300 font-bold">⭐ {newSinceCount} new since your last visit</div>
+        )}
+        {skippedIds.size > 0 && (
+          <div className="mt-1.5 flex items-center gap-2 text-[11px] text-white/50">
+            <span>🙈 {skippedIds.size} skipped job{skippedIds.size !== 1 ? 's' : ''}</span>
+            <button
+              type="button"
+              className="underline cursor-pointer bg-transparent border-none text-white/60 hover:text-white text-[11px] p-0"
+              onClick={handleResetSwipes}>
+              Reset
+            </button>
+          </div>
         )}
         {usingFallback && (
           <div className="mt-2 px-3 py-1.5 bg-white/15 rounded-[10px] text-xs text-white/80">
@@ -426,18 +500,33 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
       {!loading && isComplete && (
         <div className="flex items-center justify-center min-h-[400px] p-5">
           <div className="bg-white rounded-[20px] shadow-[0_8px_30px_rgba(0,0,0,0.1)] p-12 text-center max-w-[500px]">
-            <h2 className="text-[30px] font-bold mt-0 mb-4 text-gray-800">🎉 All Done!</h2>
-            <p className="text-gray-500 mt-0 mb-8">You've reviewed all {jobs.length} job postings.</p>
-            <div className="flex gap-3 justify-center flex-wrap">
-              <button className="text-white py-3.5 px-8 text-sm font-semibold border-none rounded-xl cursor-pointer transition-all shadow-[0_4px_12px_rgba(102,126,234,0.35)] hover:-translate-y-0.5"
+            <h2 className="text-[30px] font-bold mt-0 mb-2 text-gray-800">🎉 All Done!</h2>
+            <p className="text-gray-500 mt-0 mb-2">You've reviewed all {jobs.length} job postings.</p>
+            {skippedIds.size > 0 && (
+              <p className="text-sm text-amber-600 font-semibold mb-6 m-0">
+                🙈 {skippedIds.size} job{skippedIds.size !== 1 ? 's' : ''} skipped (hidden from feed)
+              </p>
+            )}
+            <div className="flex gap-3 justify-center flex-wrap mt-6">
+              <button
+                className="text-white py-3.5 px-8 text-sm font-semibold border-none rounded-xl cursor-pointer transition-all shadow-[0_4px_12px_rgba(102,126,234,0.35)] hover:-translate-y-0.5"
                 style={{ background: 'linear-gradient(135deg,#667eea,#764ba2)' }}
                 onClick={onNavigateToMatches}>
                 View Matches
               </button>
-              <button className="bg-white text-indigo-500 py-3.5 px-8 text-sm font-semibold border-2 border-indigo-500 rounded-xl cursor-pointer hover:bg-indigo-50"
+              <button
+                className="bg-white text-indigo-500 py-3.5 px-8 text-sm font-semibold border-2 border-indigo-500 rounded-xl cursor-pointer hover:bg-indigo-50"
                 onClick={() => { mergeJobs(MOCK_JOBS); setJobIndex(0); setUsingFallback(true); }}>
                 🔄 Browse Again
               </button>
+              {skippedIds.size > 0 && (
+                <button
+                  className="bg-amber-50 text-amber-700 py-3.5 px-8 text-sm font-semibold border-2 border-amber-300 rounded-xl cursor-pointer hover:bg-amber-100 transition-all"
+                  onClick={handleResetSwipes}
+                  title="Clear skipped history and see all jobs again including skipped ones">
+                  ↺ Reset Skipped ({skippedIds.size})
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -458,6 +547,14 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
               <span className="text-xs bg-amber-50 text-amber-700 py-0.5 px-2.5 rounded-xl font-semibold">
                 🕐 {newSinceCount} new since last visit
               </span>
+            )}
+            {skippedIds.size > 0 && (
+              <button
+                className="text-xs bg-gray-100 text-gray-500 py-0.5 px-2.5 rounded-xl font-semibold border-none cursor-pointer hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                onClick={handleResetSwipes}
+                title="Reset skipped jobs to see them again">
+                🙈 {skippedIds.size} skipped · reset
+              </button>
             )}
           </div>
           <div className="min-h-0 flex-1 flex items-start justify-center overflow-hidden">

@@ -147,6 +147,18 @@ export const App = () => {
     catch (err) { setError(err.message); setTimeout(() => setError(null), 5000); }
   };
 
+  const handleStatusChange = async (matchId, status) => {
+    if (!currentUser) { setShowAuthModal(true); return; }
+    try { await stateManager.updateMatchStatus(matchId, status); }
+    catch (err) { setError(err.message); setTimeout(() => setError(null), 5000); }
+  };
+
+  const handleDeleteMatch = async (matchId) => {
+    if (!currentUser) { setShowAuthModal(true); return; }
+    try { await stateManager.deleteMatch(matchId); }
+    catch (err) { setError(err.message); setTimeout(() => setError(null), 5000); }
+  };
+
   // ── Loading screen ────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -278,6 +290,8 @@ export const App = () => {
             matches={state.matches}
             onApply={handleApply}
             onUndoApply={handleUndoApply}
+            onStatusChange={handleStatusChange}
+            onDeleteMatch={handleDeleteMatch}
             onNavigateToBrowser={() => handleNavigate('browser')}
             currentUser={currentUser}
           />

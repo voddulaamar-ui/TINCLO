@@ -247,7 +247,36 @@ export class StateManager {
     const match = this.state.matches.find(m => m.id === matchId);
     if (match && match.applied) {
       match.applied = false;
+      match.applicationStatus = 'saved';
       this._commitMatches();
+    }
+  }
+
+  /**
+   * Update a match application status
+   */
+  async updateMatchStatus(matchId, status) {
+    const index = this.state.matches.findIndex(m => m.id === matchId);
+    if (index === -1) {
+      throw new Error('Match not found.');
+    }
+
+    const previous = { ...this.state.matches[index] };
+    this.state.matches[index] = {
+      ...this.state.matches[index],
+      applicationStatus: status,
+      applied: status === 'applied' ? true : this.state.matches[index].applied,
+    };
+    this._commitMatches();
+
+    try {
+      const apiMatch = await this.apiService.updateMatchStatus(matchId, status);
+      this.state.matches[index] = this.normalizeMatch(apiMatch);
+      this._commitMatches();
+    } catch (error) {
+      this.state.matches[index] = previous;
+      this._commitMatches();
+      throw new Error(error.message || 'Unable to update application status.');
     }
   }
 
@@ -255,14 +284,18 @@ export class StateManager {
    * Delete a match (user unlikes a job)
    */
   async deleteMatch(matchId) {
+    const previous = this.state.matches;
+    this.state.matches = this.state.matches.filter(m => m.id !== matchId);
+    this._commitMatches();
+
     try {
       await this.apiService.deleteMatch(matchId);
     } catch (error) {
       console.error('Failed to delete match from API:', error);
+      this.state.matches = previous;
+      this._commitMatches();
       throw new Error('Unable to remove saved job. Please try again.');
     }
-    this.state.matches = this.state.matches.filter(m => m.id !== matchId);
-    this._commitMatches();
   }
 
   /**

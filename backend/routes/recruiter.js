@@ -62,21 +62,52 @@ router.post('/jobs', requireRecruiter, async (req, res) => {
 
     const saved = await job.save();
 
-    // Notify online users via Socket.io
-    const io = req.app.get('io');
+    // Notify online users via Socket.io — targeted to matching candidates
+    const io          = req.app.get('io');
+    const onlineUsers = req.app.get('onlineUsers');
     if (io) {
+      // Broadcast full refresh to everyone (JobBrowser picks this up)
       io.emit('jobs:new', {
         jobs: [saved],
         newCount: 1,
         query: title,
         refreshedAt: new Date().toISOString(),
       });
-      io.emit('jobs:match', {
-        title: `🆕 New Job Posted: ${saved.title}`,
-        message: `${saved.company} is hiring for ${saved.title} in ${saved.location}`,
-        matchedJobs: [saved],
-        icon: '💼',
-      });
+
+      // Targeted: only notify online users whose skills/domain/location overlap with this job
+      if (onlineUsers && onlineUsers.size > 0) {
+        const jobSkillsLower    = (saved.skillsRequired || []).map(s => s.toLowerCase());
+        const jobDomainLower    = (saved.domain || '').toLowerCase();
+        const jobLocationLower  = (saved.location || '').toLowerCase();
+        const isRemote          = jobLocationLower.includes('remote') || (saved.workMode || '').toLowerCase() === 'remote';
+
+        for (const [onlineUserId, socketId] of onlineUsers.entries()) {
+          try {
+            const candidate = await User.findOne({ userId: onlineUserId }).select('skills domain preferredLocations role').lean();
+            if (!candidate || candidate.role === 'recruiter' || candidate.role === 'admin') continue;
+
+            const userSkillsLower = (candidate.skills || []).map(s => s.toLowerCase());
+            const userDomainLower = (candidate.domain || '').toLowerCase();
+            const userLocsLower   = (candidate.preferredLocations || []).map(l => l.toLowerCase());
+
+            const skillMatch    = jobSkillsLower.length === 0 || jobSkillsLower.some(js => userSkillsLower.some(us => us.includes(js) || js.includes(us)));
+            const domainMatch   = !jobDomainLower || !userDomainLower || jobDomainLower.includes(userDomainLower) || userDomainLower.includes(jobDomainLower);
+            const locationMatch = isRemote || userLocsLower.length === 0 || userLocsLower.some(ul => jobLocationLower.includes(ul) || ul.includes(jobLocationLower));
+
+            if (skillMatch || domainMatch || locationMatch) {
+              io.to(socketId).emit('notification:receive', {
+                id:      Date.now(),
+                type:    'new_job_match',
+                title:   `🆕 New Job Match: ${saved.title}`,
+                message: `${saved.company} is hiring in ${saved.location}${saved.matchScore ? ` · ${saved.matchScore}% match` : ''}`,
+                time:    'Just now',
+                read:    false,
+                icon:    '💼',
+              });
+            }
+          } catch { /* skip user if lookup fails */ }
+        }
+      }
     }
 
     res.status(201).json(saved);
