@@ -13,17 +13,14 @@ const LandingPage = () => {
     {/* Nav */}
     <nav className="flex justify-between items-center px-12 py-6 bg-white/10 backdrop-blur-md">
       <Link to="/" className="text-2xl font-bold" style={{ textDecoration: 'none', color: 'inherit' }}>💼 TINCLO</Link>
-      <div className="flex items-center gap-6 ml-auto">
-        <Link
-          to="/jobs"
-          className="bg-white text-[#667eea] px-6 py-2 rounded-full font-semibold transition-transform hover:-translate-y-0.5"
-        >
+      <div className="flex items-center gap-4 ml-auto">
+        <Link to="/jobs" className="bg-white text-[#667eea] px-6 py-2 rounded-full font-semibold transition-transform hover:-translate-y-0.5">
           Browse Jobs
         </Link>
-        <Link
-          to="/signup"
-          className="text-white font-medium transition-opacity hover:opacity-80"
-        >
+        <Link to="/login" className="text-white font-medium transition-opacity hover:opacity-80">
+          Login
+        </Link>
+        <Link to="/signup" className="bg-white/20 backdrop-blur-sm text-white font-medium px-5 py-2 rounded-full border border-white/40 transition-all hover:bg-white/30">
           Sign Up
         </Link>
       </div>
@@ -82,6 +79,85 @@ const LandingPage = () => {
 
     <UseCasesSection />
 
+    {/* ── Recruiter CTA Section ─────────────────────────────────── */}
+    <div className="py-20 px-12 text-white" style={{ background: 'rgba(0,0,0,0.15)' }}>
+      <div className="max-w-[1100px] mx-auto flex flex-col lg:flex-row items-center gap-16">
+        {/* Left — text */}
+        <div className="flex-1">
+          <span className="inline-block px-4 py-1.5 bg-white/20 rounded-full text-sm font-bold tracking-wide mb-5">🏢 For Recruiters</span>
+          <h2 className="text-4xl font-bold leading-tight mb-5 max-md:text-3xl">
+            Find Top Talent Faster with TINCLO
+          </h2>
+          <p className="text-lg opacity-90 mb-8 leading-relaxed">
+            Post jobs in minutes, view matched candidates ranked by skill fit, and manage your entire hiring pipeline from one dashboard.
+          </p>
+          {/* Feature bullets */}
+          <ul className="list-none p-0 m-0 flex flex-col gap-3 mb-8">
+            {[
+              { icon: '📝', text: 'Post, edit and close jobs with one click' },
+              { icon: '🎯', text: 'Candidates ranked by rule-based match score' },
+              { icon: '📊', text: 'Track applicants through 6 pipeline stages' },
+              { icon: '🔔', text: 'Real-time notifications when candidates apply' },
+              { icon: '🔒', text: 'Only you can see and manage your own jobs' },
+            ].map(({ icon, text }) => (
+              <li key={text} className="flex items-center gap-3 text-base opacity-90">
+                <span className="text-xl flex-shrink-0">{icon}</span>
+                <span>{text}</span>
+              </li>
+            ))}
+          </ul>
+          <Link
+            to="/signup"
+            className="inline-block bg-white text-[#667eea] px-8 py-4 rounded-full font-bold text-lg transition-all shadow-[0_4px_20px_rgba(0,0,0,0.2)] hover:-translate-y-0.5 hover:shadow-[0_8px_25px_rgba(0,0,0,0.3)] no-underline"
+            onClick={() => localStorage.setItem('tinclo_signup_role', 'recruiter')}
+          >
+            Start Hiring for Free →
+          </Link>
+        </div>
+
+        {/* Right — stat cards */}
+        <div className="flex-1 grid grid-cols-2 gap-4 max-w-[420px] w-full">
+          {[
+            { value: '50%',  label: 'Faster Shortlisting',     icon: '⚡' },
+            { value: '6',    label: 'Pipeline Stages',          icon: '📊' },
+            { value: '100%', label: 'Rule-Based Matching',      icon: '🎯' },
+            { value: '∞',    label: 'Jobs You Can Post',        icon: '📝' },
+          ].map(s => (
+            <div key={s.label} className="bg-white/15 backdrop-blur-sm rounded-2xl p-6 text-center border border-white/20 hover:bg-white/25 transition-all">
+              <div className="text-3xl mb-2">{s.icon}</div>
+              <div className="text-3xl font-black mb-1">{s.value}</div>
+              <div className="text-sm opacity-80 font-medium">{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+
+    {/* ── Phase 1 Feature Highlights ───────────────────────────── */}
+    <div className="py-16 px-12" style={{ background: 'rgba(0,0,0,0.1)' }}>
+      <div className="max-w-[1100px] mx-auto">
+        <h2 className="text-3xl font-bold text-center mb-10 text-white">Everything in Phase 1</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { icon: '🔐', title: 'Secure Auth',       desc: 'JWT login for Candidates & Recruiters' },
+            { icon: '🎯', title: 'Smart Matching',    desc: 'Skills · Domain · Location · Experience' },
+            { icon: '💼', title: 'Job Feed',          desc: 'Sorted by match %, newest, filtered' },
+            { icon: '👆', title: 'Swipe System',      desc: 'Swipe right to save, left to skip' },
+            { icon: '📊', title: 'App Tracker',       desc: '6-stage pipeline per application' },
+            { icon: '🏢', title: 'Recruiter Hub',     desc: 'Post jobs, manage applicants live' },
+            { icon: '👤', title: 'Rich Profiles',     desc: 'Skills, projects, education, links' },
+            { icon: '🔔', title: 'Live Notifications',desc: 'WebSocket push for new jobs & updates' },
+          ].map(f => (
+            <div key={f.title} className="bg-white/10 backdrop-blur-sm rounded-2xl p-5 border border-white/15 hover:bg-white/20 transition-all">
+              <div className="text-2xl mb-2">{f.icon}</div>
+              <h3 className="text-white font-bold text-sm m-0 mb-1">{f.title}</h3>
+              <p className="text-white/70 text-xs m-0 leading-relaxed">{f.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+
     <FinalCTASection />
 
     {/* Footer */}
@@ -101,28 +177,16 @@ const LandingPage = () => {
           <h4 className="text-[1.2rem] font-semibold text-white m-0 mb-2">Quick Links</h4>
           <ul className="list-none p-0 m-0 flex flex-col gap-3 max-md:items-center">
             <li>
-              <Link
-                to="/jobs"
-                className="text-white/85 no-underline text-[0.95rem] transition-all inline-block hover:text-white hover:translate-x-1"
-              >
-                Browse Jobs
-              </Link>
+              <Link to="/jobs" className="text-white/85 no-underline text-[0.95rem] transition-all inline-block hover:text-white hover:translate-x-1">Browse Jobs</Link>
             </li>
             <li>
-              <Link
-                to="/signup"
-                className="text-white/85 no-underline text-[0.95rem] transition-all inline-block hover:text-white hover:translate-x-1"
-              >
-                Sign Up
-              </Link>
+              <Link to="/signup" className="text-white/85 no-underline text-[0.95rem] transition-all inline-block hover:text-white hover:translate-x-1">Sign Up — Candidate</Link>
             </li>
             <li>
-              <Link
-                to="/login"
-                className="text-white/85 no-underline text-[0.95rem] transition-all inline-block hover:text-white hover:translate-x-1"
-              >
-                Login
-              </Link>
+              <Link to="/signup" className="text-white/85 no-underline text-[0.95rem] transition-all inline-block hover:text-white hover:translate-x-1">Sign Up — Recruiter</Link>
+            </li>
+            <li>
+              <Link to="/login" className="text-white/85 no-underline text-[0.95rem] transition-all inline-block hover:text-white hover:translate-x-1">Login</Link>
             </li>
           </ul>
         </div>

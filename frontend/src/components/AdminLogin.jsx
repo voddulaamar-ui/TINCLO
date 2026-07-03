@@ -105,6 +105,10 @@ const AdminLogin = () => {
           className="block w-full mt-4 py-2.5 bg-transparent text-white/40 border border-white/10 rounded-xl text-sm cursor-pointer transition-all hover:text-white/70 hover:border-white/20 text-center">
           ← Back to TINCLO
         </button>
+        <p className="text-center text-white/25 text-[11px] mt-3">
+          Not an admin?{' '}
+          <a href="/login" className="text-white/40 hover:text-white/70 underline transition-colors">Candidate / Recruiter login →</a>
+        </p>
       </div>
     </div>
   );

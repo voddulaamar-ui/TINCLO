@@ -71,26 +71,45 @@ export class StateManager {
 
   /**
    * Normalize API match response to internal match structure
+   * Carries all Phase-1 fields: matchScore, matchDetails, applicationStatus
    */
   normalizeMatch(apiMatch) {
+    const job = apiMatch.jobId || {};
     return {
       id: apiMatch._id,
-      job: {
-        id: apiMatch.jobId._id,
-        title: apiMatch.jobId.title,
-        company: apiMatch.jobId.company,
-        description: apiMatch.jobId.description,
-        salary: apiMatch.jobId.salary,
-        location: apiMatch.jobId.location,
-        applyUrl: apiMatch.jobId.applyUrl || null,
-        source: apiMatch.jobId.source || null,
-        isExternal: apiMatch.jobId.isExternal || false,
-        tags: apiMatch.jobId.tags || []
-      },
+      applicationStatus: apiMatch.applicationStatus || (apiMatch.applied ? 'applied' : 'saved'),
+      matchScore:   apiMatch.matchScore   || 0,
+      matchDetails: apiMatch.matchDetails || null,
       matchedAt: apiMatch.matchedAt
         ? new Date(apiMatch.matchedAt).toISOString()
         : new Date().toISOString(),
-      applied: apiMatch.applied
+      applied: apiMatch.applied || false,
+      job: {
+        id:          job._id,
+        _id:         job._id,
+        title:       job.title,
+        company:     job.company,
+        description: job.description,
+        salary:      job.salary,
+        location:    job.location,
+        applyUrl:    job.applyUrl    || null,
+        source:      job.source      || null,
+        isExternal:  job.isExternal  || false,
+        tags:        job.tags        || [],
+        // Phase-1 additions
+        domain:             job.domain             || '',
+        workMode:           job.workMode           || '',
+        jobType:            job.jobType            || 'Full-time',
+        skillsRequired:     job.skillsRequired     || [],
+        requirements:       job.requirements       || [],
+        experienceRequired: job.experienceRequired || job.experience || '',
+        experience:         job.experience         || '',
+        companyLogo:        job.companyLogo        || null,
+        deadline:           job.deadline           || null,
+        status:             job.status             || 'open',
+        postedAt:           job.postedAt           || null,
+        createdAt:          job.createdAt          || null,
+      },
     };
   }
 
@@ -122,25 +141,42 @@ export class StateManager {
   }
 
   /**
-   * Add a match (user likes a job)
+   * Add a match (user likes a job) — carries all Phase-1 job fields
    */
   async addMatch(job) {
     const localMatch = {
       id: `local-${Date.now()}`,
-      job: {
-        id: job.id || job._id,
-        title: job.title,
-        company: job.company,
-        description: job.description,
-        salary: job.salary,
-        location: job.location,
-        applyUrl: job.applyUrl || null,
-        source: job.source || null,
-        isExternal: job.isExternal || false,
-        tags: job.tags || []
-      },
+      applicationStatus: 'saved',
+      matchScore:   job.matchScore   || 0,
+      matchDetails: job.matchDetails || null,
       matchedAt: new Date().toISOString(),
-      applied: false
+      applied: false,
+      job: {
+        id:          job.id  || job._id,
+        _id:         job._id || job.id,
+        title:       job.title,
+        company:     job.company,
+        description: job.description,
+        salary:      job.salary,
+        location:    job.location,
+        applyUrl:    job.applyUrl    || null,
+        source:      job.source      || null,
+        isExternal:  job.isExternal  || false,
+        tags:        job.tags        || [],
+        // Phase-1 fields
+        domain:             job.domain             || '',
+        workMode:           job.workMode           || '',
+        jobType:            job.jobType            || 'Full-time',
+        skillsRequired:     job.skillsRequired     || [],
+        requirements:       job.requirements       || [],
+        experienceRequired: job.experienceRequired || job.experience || '',
+        experience:         job.experience         || '',
+        companyLogo:        job.companyLogo        || null,
+        deadline:           job.deadline           || null,
+        status:             job.status             || 'open',
+        postedAt:           job.postedAt           || null,
+        createdAt:          job.createdAt          || null,
+      },
     };
 
     this.state.matches.push(localMatch);
