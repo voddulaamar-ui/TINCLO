@@ -237,7 +237,7 @@ const CandidateAnalytics = () => {
         </div>
 
         {/* Tips */}
-        <div className="col-span-2 max-lg:col-span-1 rounded-2xl p-6 shadow-sm" style={{ background: 'linear-gradient(135deg,#f0f4ff,#faf0ff)' }}>
+        <div className="col-span-2 max-lg:col-span-1 rounded-2xl p-6 shadow-sm bg-page-light dark:bg-page-dark">
           <h2 className="m-0 mb-4 text-base font-extrabold text-gray-900">💡 Job Search Tips</h2>
           <div className="grid grid-cols-3 gap-3 max-md:grid-cols-1">
             {[

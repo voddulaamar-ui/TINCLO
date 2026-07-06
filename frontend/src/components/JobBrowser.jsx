@@ -1,6 +1,6 @@
 // JobBrowser — Live jobs, match scoring, full filters, auto-refresh, WebSocket push
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { JobCard } from './JobCard';
 import ApiService from '../services/ApiService';
 import SocketService from '../services/SocketService';
@@ -96,9 +96,10 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
   const labelRef   = useRef(null);
 
   // ── User profile for scoring ──────────────────────────────────────────────
-  const userProfile = currentUser
-    ? (() => { try { return JSON.parse(localStorage.getItem('tinclo_current_user') || 'null'); } catch { return null; } })()
-    : null;
+  const userProfile = useMemo(() => {
+    if (!currentUser) return null;
+    try { return JSON.parse(localStorage.getItem('tinclo_current_user') || 'null'); } catch { return null; }
+  }, [currentUser]);
 
   // ── Skipped jobs — persisted per user ────────────────────────────────────
   const userId = currentUser?.id || 'guest';
@@ -285,10 +286,10 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
 
   // ── Track job view ────────────────────────────────────────────────────────
   useEffect(() => {
-    if (currentJob) {
+    if (currentJob && currentUser?.id) {
       const id = currentJob._id || currentJob.id;
       trackJobView(id);
-      if (currentUser?.id && id) ApiService.trackJobView({ userId: currentUser.id, jobId: id }).catch(() => {});
+      if (id) ApiService.trackJobView({ userId: currentUser.id, jobId: id }).catch(() => {});
     }
   }, [currentJob?._id, currentJob?.id]); // eslint-disable-line
 

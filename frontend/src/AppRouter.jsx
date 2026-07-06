@@ -24,6 +24,9 @@ const BenchmarkPage = lazy(() => import('./components/BenchmarkPage'));
 const HackathonPage = lazy(() => import('./components/HackathonPage'));
 const CareerFairPage = lazy(() => import('./components/CareerFairPage'));
 const VerifiedSkillsPage = lazy(() => import('./components/VerifiedSkillsPage'));
+const InternalMarketplacePage = lazy(() => import('./components/InternalMarketplacePage'));
+const InterviewRoomPage = lazy(() => import('./components/InterviewRoomPage'));
+const EnterpriseMarketplacePage = lazy(() => import('./components/EnterpriseMarketplacePage'));
 
 // ── Non-lazy (small, needed immediately) ─────────────────────────────────────
 import AdminRoute from './components/AdminRoute';
@@ -98,6 +101,9 @@ const AppRouter = () => (
         <Route path="/hackathons" element={<AnyAuthRoute><HackathonPage /></AnyAuthRoute>} />
         <Route path="/career-fairs" element={<AnyAuthRoute><CareerFairPage /></AnyAuthRoute>} />
         <Route path="/verified-skills" element={<AuthRoute><VerifiedSkillsPage /></AuthRoute>} />
+        <Route path="/internal-marketplace" element={<AuthRoute><InternalMarketplacePage /></AuthRoute>} />
+        <Route path="/interview-room" element={<AuthRoute><InterviewRoomPage /></AuthRoute>} />
+        <Route path="/enterprise-marketplace" element={<AnyAuthRoute><EnterpriseMarketplacePage /></AnyAuthRoute>} />
 
         {/* Recruiter */}
         <Route path="/recruiter"       element={<RecruiterRoute><RecruiterDashboard /></RecruiterRoute>} />

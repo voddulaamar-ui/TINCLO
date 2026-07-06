@@ -146,8 +146,7 @@ export default function SavedJobsPage() {
   return (
     <>
       <NavigationLanding />
-      <div className="min-h-screen pt-20 pb-12 px-4"
-        style={{ background: 'linear-gradient(135deg,#f0f4ff 0%,#faf0ff 50%,#f0fff4 100%)' }}>
+      <div className="min-h-screen pt-20 pb-12 px-4 bg-page-light dark:bg-page-dark">
         <div className="max-w-[900px] mx-auto">
 
           {/* Header */}

@@ -67,6 +67,9 @@ import benchmarkRoutes from './routes/benchmark.js';
 import hackathonRoutes from './routes/hackathons.js';
 import careerFairRoutes from './routes/careerFairs.js';
 import verifiedSkillsRoutes from './routes/verifiedSkills.js';
+import internalMarketplaceRoutes from './routes/internalMarketplace.js';
+import interviewRoomRoutes from './routes/interviewRoom.js';
+import enterpriseMarketplaceRoutes from './routes/enterpriseMarketplace.js';
 import {
   helmetMiddleware, compressionMiddleware, generalLimiter, authLimiter,
   sanitizeMiddleware, hppMiddleware, xssClean,
@@ -302,6 +305,9 @@ const registerRoutes = (prefix) => {
   app.use(`${prefix}/hackathons`,       requireMongoConnection, hackathonRoutes);
   app.use(`${prefix}/career-fairs`,    requireMongoConnection, careerFairRoutes);
   app.use(`${prefix}/verified-skills`, requireMongoConnection, verifiedSkillsRoutes);
+  app.use(`${prefix}/internal-marketplace`, requireMongoConnection, internalMarketplaceRoutes);
+  app.use(`${prefix}/interview-room`, requireMongoConnection, interviewRoomRoutes);
+  app.use(`${prefix}/enterprise-marketplace`, requireMongoConnection, enterpriseMarketplaceRoutes);
 };
 
 // Register under both /api and /api/v1

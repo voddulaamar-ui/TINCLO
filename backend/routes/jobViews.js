@@ -16,35 +16,30 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ message: 'userId and jobId are required' });
   }
 
-  if (!mongoose.Types.ObjectId.isValid(jobId)) {
-    return res.status(400).json({ message: 'Invalid jobId' });
-  }
+  // If jobId is not a valid ObjectId (e.g. external job), store as string reference
+  const isValidObjectId = mongoose.Types.ObjectId.isValid(jobId);
 
   try {
-    const [user, job] = await Promise.all([
-      User.findOne({ userId }),
-      Job.findById(jobId),
-    ]);
-
-    if (!user) {
-      return res.status(400).json({ message: 'User not found. Please register before tracking job views.' });
-    }
-
-    if (!job) {
-      return res.status(404).json({ message: 'Job not found' });
+    // Only look up user/job if we have a valid ObjectId
+    if (isValidObjectId) {
+      const job = await Job.findById(jobId);
+      if (!job) return res.status(404).json({ message: 'Job not found' });
     }
 
     const view = await JobView.findOneAndUpdate(
-      { userId, jobId },
-      { $set: { viewedAt: new Date() } },
+      { userId, jobId: isValidObjectId ? jobId : undefined, externalJobId: !isValidObjectId ? jobId : undefined },
+      { $set: { userId, jobId: isValidObjectId ? jobId : undefined, externalJobId: !isValidObjectId ? jobId : undefined, viewedAt: new Date() } },
       { new: true, upsert: true, setDefaultsOnInsert: true }
-    ).populate('jobId');
-    await RecentView.findOneAndUpdate(
-      { userId, jobId },
-      { userId, jobId, viewedAt: new Date() },
-      { upsert: true, new: true },
-    ).catch(() => {});
-    await AnalyticsEvent.create({ userId, jobId, eventType: 'job_viewed' }).catch(() => {});
+    );
+
+    if (isValidObjectId) {
+      await RecentView.findOneAndUpdate(
+        { userId, jobId },
+        { userId, jobId, viewedAt: new Date() },
+        { upsert: true, new: true },
+      ).catch(() => {});
+    }
+    await AnalyticsEvent.create({ userId, jobId: isValidObjectId ? jobId : undefined, eventType: 'job_viewed', metadata: { rawJobId: jobId } }).catch(() => {});
 
     res.status(201).json(view);
   } catch (error) {

@@ -275,8 +275,7 @@ export const App = () => {
       )}
 
       {/* ── Views ── */}
-      <main className={`flex-1 min-h-0 px-5 py-4 ${state.currentView === 'browser' ? 'overflow-hidden' : 'overflow-y-auto'}`}
-        style={{ background: 'linear-gradient(135deg,#f0f4ff 0%,#faf0ff 50%,#f0fff4 100%)' }}>
+      <main className={`flex-1 min-h-0 px-5 py-4 bg-page-light dark:bg-page-dark ${state.currentView === 'browser' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
         {state.currentView === 'browser' ? (
           <JobBrowser
             onMatch={handleMatch}

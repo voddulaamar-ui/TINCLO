@@ -80,14 +80,13 @@ const LoginPage = () => {
   return (
     <>
       <NavigationLanding />
-      <div className="min-h-screen flex items-center justify-center pt-20 px-4 pb-8 relative overflow-hidden"
-        style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)' }}>
+      <div className="min-h-screen flex items-center justify-center pt-20 px-4 pb-8 relative overflow-hidden bg-auth-gradient dark:!bg-[#0f172a]">
         <div className="absolute w-[600px] h-[600px] rounded-full -top-48 -right-48 pointer-events-none"
           style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)' }} />
         <div className="absolute w-[400px] h-[400px] rounded-full -bottom-24 -left-24 pointer-events-none"
           style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%)' }} />
 
-        <div className="relative z-10 w-full max-w-[440px] bg-white rounded-3xl shadow-[0_30px_80px_rgba(0,0,0,0.3)] px-10 py-12">
+        <div className="relative z-10 w-full max-w-[440px] dark:!bg-[#1e293b] bg-white rounded-3xl shadow-[0_30px_80px_rgba(0,0,0,0.3)] px-10 py-12">
           <div className="text-center mb-8">
             <div className="text-4xl mb-3">💼</div>
             <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h2>

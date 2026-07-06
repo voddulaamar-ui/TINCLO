@@ -53,8 +53,7 @@ const SignupPage = () => {
 
   return (
     <>
-      <div className="min-h-screen flex items-center justify-center px-4 py-8 relative overflow-hidden"
-        style={{ background: 'linear-gradient(135deg,#667eea 0%,#764ba2 100%)' }}>
+      <div className="min-h-screen flex items-center justify-center px-4 py-8 relative overflow-hidden bg-auth-gradient dark:!bg-[#0f172a]">
         {/* Blobs */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute w-[500px] h-[500px] rounded-full -top-[10%] -left-[10%] opacity-30 blur-[80px] animate-[float_20s_infinite_ease-in-out]" style={{ background: 'linear-gradient(135deg,#f093fb,#f5576c)' }} />

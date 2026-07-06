@@ -183,7 +183,13 @@ export class StateManager {
     this.state.currentJobIndex++;
     this._commitMatches(); // persist immediately
 
-    // Try to sync with API
+    // Try to sync with API (only if we have an auth token)
+    const token = localStorage.getItem('tinclo_token');
+    if (!token) {
+      console.log('⚠️ No auth token — match saved locally only');
+      return localMatch;
+    }
+
     try {
       const apiMatch = await this.apiService.createMatch(this.userId, job.id || job._id);
       const normalizedMatch = this.normalizeMatch(apiMatch);

@@ -162,7 +162,7 @@ export default function ProfilePage() {
   return (
     <>
       <NavigationLanding />
-      <div className="min-h-screen pt-20 px-4 pb-12" style={{ background: 'linear-gradient(135deg,#f0f4ff 0%,#faf0ff 50%,#f0fff4 100%)' }}>
+      <div className="min-h-screen pt-20 px-4 pb-12 bg-page-light dark:bg-page-dark">
         <div className="max-w-[1100px] mx-auto flex gap-6 items-start flex-col md:flex-row">
 
           {/* ── Sidebar ── */}

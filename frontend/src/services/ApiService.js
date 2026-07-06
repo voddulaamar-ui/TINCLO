@@ -101,7 +101,15 @@ const ApiService = {
     return apiFetch(`/users/${userId}`);
   },
   async ensureUserExists(userId) {
-    return this.fetchUser(userId);
+    try {
+      return await this.fetchUser(userId);
+    } catch (e) {
+      // If user not found, try to create them
+      if (e.message && (e.message.includes('not found') || e.message.includes('404'))) {
+        return this.createUser(userId);
+      }
+      throw e;
+    }
   },
   async createUser(userId) {
     return apiFetch('/users', { method: 'POST', body: JSON.stringify({ userId }) });
@@ -1102,6 +1110,45 @@ const ApiService = {
   async getVerifiedSkillsCertificates() { return apiFetch('/verified-skills/certificates'); },
   async getVerifiedSkillsAnalytics() { return apiFetch('/verified-skills/analytics'); },
   async shareVerifiedSkills(data) { return apiFetch('/verified-skills/share', { method: 'POST', body: JSON.stringify(data) }); },
+
+  // ══════════ INTERNAL MARKETPLACE (Phase 41) ═════════════════════════════════
+  async getInternalJobs(params = {}) { const q = new URLSearchParams(params).toString(); return apiFetch(`/internal-marketplace/jobs?${q}`); },
+  async getInternalJob(id) { return apiFetch(`/internal-marketplace/jobs/${id}`); },
+  async createInternalJob(data) { return apiFetch('/internal-marketplace/jobs', { method: 'POST', body: JSON.stringify(data) }); },
+  async updateInternalJob(id, data) { return apiFetch(`/internal-marketplace/jobs/${id}`, { method: 'PUT', body: JSON.stringify(data) }); },
+  async applyInternalJob(data) { return apiFetch('/internal-marketplace/apply', { method: 'POST', body: JSON.stringify(data) }); },
+  async getMyInternalApps() { return apiFetch('/internal-marketplace/my-applications'); },
+  async getInternalJobApps(jobId) { return apiFetch(`/internal-marketplace/jobs/${jobId}/applications`); },
+  async updateInternalApp(id, data) { return apiFetch(`/internal-marketplace/applications/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); },
+  async getInternalRecommendations() { return apiFetch('/internal-marketplace/recommendations'); },
+  async getSuccessionRoles() { return apiFetch('/internal-marketplace/succession'); },
+
+  // ══════════ AI INTERVIEW ROOM (Phase 42) ════════════════════════════════════
+  async createInterviewRoom(data) { return apiFetch('/interview-room', { method: 'POST', body: JSON.stringify(data) }); },
+  async getInterviewRooms(params = {}) { const q = new URLSearchParams(params).toString(); return apiFetch(`/interview-room?${q}`); },
+  async getInterviewRoom(id) { return apiFetch(`/interview-room/${id}`); },
+  async startInterview(id) { return apiFetch(`/interview-room/${id}/start`, { method: 'POST' }); },
+  async endInterview(id) { return apiFetch(`/interview-room/${id}/end`, { method: 'POST' }); },
+  async updateInterviewCode(id, data) { return apiFetch(`/interview-room/${id}/code`, { method: 'PATCH', body: JSON.stringify(data) }); },
+  async updateInterviewWhiteboard(id, data) { return apiFetch(`/interview-room/${id}/whiteboard`, { method: 'PATCH', body: JSON.stringify(data) }); },
+  async saveInterviewTranscript(id, transcript) { return apiFetch(`/interview-room/${id}/transcript`, { method: 'PATCH', body: JSON.stringify({ transcript }) }); },
+  async getInterviewAISummary(id) { return apiFetch(`/interview-room/${id}/ai-summary`, { method: 'POST' }); },
+  async submitInterviewScorecard(id, data) { return apiFetch(`/interview-room/${id}/scorecard`, { method: 'POST', body: JSON.stringify(data) }); },
+  async getInterviewScorecards(id) { return apiFetch(`/interview-room/${id}/scorecards`); },
+  async getInterviewPlayback(id) { return apiFetch(`/interview-room/${id}/playback`); },
+
+  // ══════════ ENTERPRISE MARKETPLACE (Phase 43) ═══════════════════════════════
+  async getMarketplaceItems(params = {}) { const q = new URLSearchParams(params).toString(); return apiFetch(`/enterprise-marketplace/items?${q}`); },
+  async getMarketplaceItem(id) { return apiFetch(`/enterprise-marketplace/items/${id}`); },
+  async getMarketplaceCategories() { return apiFetch('/enterprise-marketplace/categories'); },
+  async publishMarketplaceItem(data) { return apiFetch('/enterprise-marketplace/items', { method: 'POST', body: JSON.stringify(data) }); },
+  async updateMarketplaceItem(id, data) { return apiFetch(`/enterprise-marketplace/items/${id}`, { method: 'PUT', body: JSON.stringify(data) }); },
+  async installMarketplaceItem(itemId) { return apiFetch('/enterprise-marketplace/install', { method: 'POST', body: JSON.stringify({ itemId }) }); },
+  async uninstallMarketplaceItem(itemId) { return apiFetch('/enterprise-marketplace/uninstall', { method: 'POST', body: JSON.stringify({ itemId }) }); },
+  async getMyMarketplaceInstalls() { return apiFetch('/enterprise-marketplace/my-installs'); },
+  async getMyMarketplaceItems() { return apiFetch('/enterprise-marketplace/my-items'); },
+  async getMarketplaceRevenue() { return apiFetch('/enterprise-marketplace/revenue'); },
+  async reviewMarketplaceItem(id, data) { return apiFetch(`/enterprise-marketplace/items/${id}/review`, { method: 'POST', body: JSON.stringify(data) }); },
 };
 
 export default ApiService;

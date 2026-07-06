@@ -458,7 +458,7 @@ export default function RecruiterDashboard() {
   return (
     <>
       <NavigationLanding />
-      <div className="min-h-screen pt-16 pb-10" style={{ background: 'linear-gradient(135deg,#f0f4ff 0%,#faf0ff 50%,#f0fff4 100%)' }}>
+      <div className="min-h-screen pt-16 pb-10 bg-page-light dark:bg-page-dark">
 
         {/* Header */}
         <div className="px-6 py-5 flex justify-between items-center flex-wrap gap-3 shadow-[0_4px_20px_rgba(102,126,234,0.3)]"

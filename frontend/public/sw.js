@@ -38,6 +38,8 @@ self.addEventListener('fetch', (event) => {
   // Skip non-GET and API requests
   if (request.method !== 'GET') return;
   if (url.pathname.startsWith('/api')) return;
+  // Skip chrome-extension and other non-http schemes
+  if (!url.protocol.startsWith('http')) return;
 
   // For navigation requests, serve cached shell
   if (request.mode === 'navigate') {
@@ -59,8 +61,10 @@ self.addEventListener('fetch', (event) => {
       caches.match(request).then((cached) => {
         if (cached) return cached;
         return fetch(request).then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          if (response && response.status === 200 && url.protocol.startsWith('http')) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
           return response;
         }).catch(() => new Response('', { status: 503 }));
       })

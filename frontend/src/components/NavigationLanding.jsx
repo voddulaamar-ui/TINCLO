@@ -116,8 +116,7 @@ const NavigationLanding = () => {
     <>
       <nav
         ref={menuRef}
-        className="fixed top-0 left-0 right-0 z-[200] backdrop-blur-md shadow-[0_2px_20px_rgba(0,0,0,0.15)]"
-        style={{ background: 'linear-gradient(135deg, rgba(102,126,234,0.97) 0%, rgba(118,75,162,0.97) 100%)' }}
+        className="fixed top-0 left-0 right-0 z-[200] backdrop-blur-md shadow-[0_2px_20px_rgba(0,0,0,0.15)] bg-brand-gradient dark:!bg-[#1e293b]"
       >
         {/* ── Main bar ── */}
         <div className="flex items-center justify-between px-5 py-3">
