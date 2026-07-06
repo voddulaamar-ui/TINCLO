@@ -38,5 +38,9 @@ const matchSchema = new mongoose.Schema({
 });
 
 matchSchema.index({ userId: 1, jobId: 1 }, { unique: true });
+// Phase 2: support fast dashboard/analytics queries by status
+matchSchema.index({ userId: 1, applicationStatus: 1 });
+matchSchema.index({ jobId: 1, applicationStatus: 1 });
+matchSchema.index({ userId: 1, applied: 1, matchedAt: -1 });
 
 export default mongoose.model('Match', matchSchema);

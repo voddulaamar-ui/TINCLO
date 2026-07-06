@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Allow: /companies
+Allow: /jobs/
+
+Disallow: /admin
+Disallow: /api/
+
+Sitemap: https://tinclo.app/sitemap.xml

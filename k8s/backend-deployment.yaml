@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tinclo-backend
+  namespace: tinclo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tinclo-backend
+  template:
+    metadata:
+      labels:
+        app: tinclo-backend
+    spec:
+      containers:
+        - name: backend
+          image: tinclo/backend:latest
+          ports:
+            - containerPort: 5002
+          envFrom:
+            - secretRef:
+                name: tinclo-secrets
+            - configMapRef:
+                name: tinclo-config
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 5002
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 5002
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tinclo-backend-svc
+  namespace: tinclo
+spec:
+  selector:
+    app: tinclo-backend
+  ports:
+    - port: 5002
+      targetPort: 5002
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: tinclo-backend-hpa
+  namespace: tinclo
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: tinclo-backend
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

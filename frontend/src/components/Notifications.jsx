@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import ApiService from '../services/ApiService';
 
 const STORAGE_KEY = 'tinclo_notifications';
 
@@ -26,13 +27,43 @@ const saveNotifications = (notifications) => {
 
 const Notifications = ({ onClose }) => {
   const [notifications, setNotifications] = useState(loadNotifications);
+  const [filter, setFilter] = useState('');
+  const [usingServer, setUsingServer] = useState(false);
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  useEffect(() => { saveNotifications(notifications); }, [notifications]);
+  useEffect(() => {
+    const token = localStorage.getItem('tinclo_token');
+    if (!token) return;
+    ApiService.getNotifications(filter ? { type: filter } : {})
+      .then(data => {
+        setUsingServer(true);
+        setNotifications((data.notifications || []).map(n => ({
+          id: n._id || n.id,
+          type: n.type || 'system',
+          title: n.title,
+          message: n.message,
+          time: n.createdAt ? new Date(n.createdAt).toLocaleString() : 'Just now',
+          read: n.read,
+          icon: n.icon || 'bell',
+        })));
+      })
+      .catch(() => setUsingServer(false));
+  }, [filter]);
 
-  const markAllRead = () => setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  const markRead    = (id) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  const deleteNotif = (id) => setNotifications(prev => prev.filter(n => n.id !== id));
+  useEffect(() => { if (!usingServer) saveNotifications(notifications); }, [notifications, usingServer]);
+
+  const markAllRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    if (usingServer) ApiService.markAllNotificationsRead().catch(() => {});
+  };
+  const markRead = (id) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    if (usingServer) ApiService.markNotificationRead(id).catch(() => {});
+  };
+  const deleteNotif = (id) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    if (usingServer) ApiService.deleteNotification(id).catch(() => {});
+  };
 
   return (
     <div className="fixed inset-0 bg-black/30 z-[500] backdrop-blur-sm" onClick={onClose}>
@@ -57,6 +88,15 @@ const Notifications = ({ onClose }) => {
               ×
             </button>
           </div>
+        </div>
+
+        <div className="px-4 py-2 flex gap-2 border-b border-gray-100 overflow-x-auto">
+          {['', 'new_matching_job', 'application_update', 'new_application', 'system'].map(type => (
+            <button key={type || 'all'} onClick={() => setFilter(type)}
+              className={`px-3 py-1 rounded-full text-[11px] font-bold border whitespace-nowrap ${filter === type ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-500 border-gray-200'}`}>
+              {type ? type.replaceAll('_', ' ') : 'All'}
+            </button>
+          ))}
         </div>
 
         {/* List */}

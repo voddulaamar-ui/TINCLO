@@ -3,6 +3,271 @@ import { useNavigate } from 'react-router-dom';
 import NavigationLanding from './NavigationLanding';
 import ApiService from '../services/ApiService';
 
+// ── Job Performance Panel ─────────────────────────────────────────────────────
+const JobPerformancePanel = ({ dashboardStats }) => {
+  const [perfData, setPerfData] = useState(null);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState('');
+
+  useEffect(() => {
+    // Try the /dashboard/recruiter endpoint which returns jobPerformance array
+    ApiService.getRecruiterDashboardStats()
+      .then(d => setPerfData(d?.jobPerformance || []))
+      .catch(e => setError(e.message || 'Failed to load performance data'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return (
+    <div className="flex flex-col items-center py-20 gap-3 text-gray-400">
+      <div className="w-8 h-8 border-[3px] border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
+      Loading job performance…
+    </div>
+  );
+  if (error) return <div className="py-10 text-center text-red-500 font-semibold">{error}</div>;
+  if (!perfData || perfData.length === 0) return (
+    <div className="flex flex-col items-center py-20 gap-3 text-gray-400">
+      <span className="text-4xl">📊</span>
+      <p className="text-sm font-semibold">Post jobs to see performance data here.</p>
+    </div>
+  );
+
+  const COLS = [
+    { key: 'views',        label: 'Views',        color: '#667eea', icon: '👁' },
+    { key: 'saves',        label: 'Saves',        color: '#f6ad55', icon: '🔖' },
+    { key: 'applications', label: 'Applications', color: '#48bb78', icon: '📧' },
+    { key: 'shortlisted',  label: 'Shortlisted',  color: '#3182ce', icon: '⭐' },
+    { key: 'interviewed',  label: 'Interviewed',  color: '#805ad5', icon: '📅' },
+    { key: 'selected',     label: 'Selected',     color: '#38a169', icon: '🏆' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-base font-black text-gray-900 m-0">Job Performance Overview</h3>
+        <span className="text-xs text-gray-400 font-semibold">{perfData.length} job{perfData.length !== 1 ? 's' : ''}</span>
+      </div>
+
+      {/* Desktop table */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hidden md:block">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b border-gray-200" style={{ background: 'linear-gradient(135deg,#667eea,#764ba2)' }}>
+                <th className="text-left px-5 py-3.5 text-white font-black text-xs">Job Title</th>
+                {COLS.map(c => (
+                  <th key={c.key} className="text-center px-3 py-3.5 text-white font-black text-xs whitespace-nowrap">
+                    {c.icon} {c.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {perfData.map((job, i) => {
+                const conversion = job.applications > 0
+                  ? Math.round((job.selected / job.applications) * 100) : 0;
+                return (
+                  <tr key={job.jobId || i}
+                    className={`border-b border-gray-100 hover:bg-indigo-50/40 transition-colors ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
+                    <td className="px-5 py-3.5">
+                      <div className="font-black text-gray-900 max-w-[220px] truncate">{job.title}</div>
+                      {conversion > 0 && (
+                        <div className="text-[11px] text-emerald-600 font-semibold mt-0.5">{conversion}% conversion</div>
+                      )}
+                    </td>
+                    {COLS.map(c => (
+                      <td key={c.key} className="text-center px-3 py-3.5">
+                        <span className="inline-flex items-center justify-center w-9 h-9 rounded-full text-sm font-black"
+                          style={{ background: c.color + '15', color: c.color }}>
+                          {job[c.key] ?? 0}
+                        </span>
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+            {/* Totals row */}
+            <tfoot>
+              <tr className="border-t-2 border-gray-200 bg-slate-50">
+                <td className="px-5 py-3 font-black text-gray-700 text-xs uppercase tracking-wide">Totals</td>
+                {COLS.map(c => {
+                  const total = perfData.reduce((s, j) => s + (j[c.key] ?? 0), 0);
+                  return (
+                    <td key={c.key} className="text-center px-3 py-3">
+                      <span className="text-sm font-black text-gray-900">{total}</span>
+                    </td>
+                  );
+                })}
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {/* Mobile cards */}
+      <div className="space-y-3 md:hidden">
+        {perfData.map((job, i) => (
+          <div key={job.jobId || i} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
+            <div className="font-black text-gray-900 mb-3">{job.title}</div>
+            <div className="grid grid-cols-3 gap-2">
+              {COLS.map(c => (
+                <div key={c.key} className="text-center rounded-xl py-2 px-1" style={{ background: c.color + '10' }}>
+                  <div className="text-lg font-black" style={{ color: c.color }}>{job[c.key] ?? 0}</div>
+                  <div className="text-[10px] text-gray-500 font-semibold">{c.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ── Inline bar chart (no external dep) ───────────────────────────────────────
+const MiniBarChart = ({ data, labelKey, valueKey, color = '#667eea', height = 130 }) => {
+  const max = Math.max(...data.map(d => d[valueKey]), 1);
+  return (
+    <div className="flex gap-1.5 items-end" style={{ height }}>
+      {data.map((d, i) => {
+        const pct = Math.max((d[valueKey] / max) * 100, 2);
+        return (
+          <div key={i} className="flex-1 flex flex-col items-center gap-1 h-full group relative">
+            <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10">
+              {d[valueKey]}
+            </div>
+            <div className="flex-1 w-full flex items-end bg-gray-100 rounded-t overflow-hidden">
+              <div className="w-full rounded-t transition-all duration-700" style={{ height: `${pct}%`, background: color }} />
+            </div>
+            <div className="text-[10px] text-gray-500 font-semibold truncate w-full text-center">{d[labelKey]}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// ── Recruiter analytics panel (embedded in RecruiterDashboard) ────────────────
+const RecruiterAnalyticsPanel = () => {
+  const [d,       setD]       = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState('');
+
+  useEffect(() => {
+    ApiService.getRecruiterAnalytics()
+      .then(setD)
+      .catch(e => setError(e.message || 'Failed to load analytics'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return (
+    <div className="flex flex-col items-center py-20 gap-3 text-gray-400">
+      <div className="w-8 h-8 border-[3px] border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
+      Loading analytics…
+    </div>
+  );
+  if (error) return <div className="py-10 text-center text-red-500 font-semibold">{error}</div>;
+  if (!d)    return null;
+
+  const t = d.totals || {};
+  const STAT_CARDS = [
+    { label: 'Jobs Posted',       value: t.totalJobsPosted       || 0, color: '#667eea', icon: '💼' },
+    { label: 'Applications',      value: t.applicationsReceived  || 0, color: '#48bb78', icon: '📧' },
+    { label: 'Shortlisted',       value: t.shortlistedCandidates || 0, color: '#f6ad55', icon: '⭐' },
+    { label: 'Interviews',        value: t.interviewsScheduled   || 0, color: '#805ad5', icon: '📅' },
+    { label: 'Avg Apps / Job',    value: t.averageApplicationsPerJob || 0, color: '#3182ce', icon: '📊' },
+    { label: 'Hiring Rate',       value: `${t.hiringSuccessRate  || 0}%`, color: '#d69e2e', icon: '🏆' },
+  ];
+
+  const weekData  = (d.applicationsPerWeek || []).map((r, i) => ({
+    label: r.date ? ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(r.date).getDay()] : String(i),
+    count: r.count ?? 0,
+  }));
+  const skillData = (d.candidateSkillDistribution || []).slice(0, 8);
+  const expData   = (d.candidateExperienceDistribution || []).map(e => ({ label: e.experience, count: e.count }));
+  const SKILL_COLORS = ['#667eea','#764ba2','#f093fb','#48bb78','#f6ad55','#fc8181','#3182ce','#38a169'];
+
+  return (
+    <div className="space-y-5">
+      {/* Stat cards */}
+      <div className="grid grid-cols-6 gap-4 max-xl:grid-cols-3 max-sm:grid-cols-2">
+        {STAT_CARDS.map((s, i) => (
+          <div key={i} className="bg-white rounded-2xl p-5 text-center shadow-sm border-t-4 hover:-translate-y-0.5 transition-transform"
+            style={{ borderColor: s.color }}>
+            <div className="text-2xl mb-1">{s.icon}</div>
+            <div className="text-2xl font-black" style={{ color: s.color }}>{s.value}</div>
+            <div className="text-xs text-gray-500 font-semibold mt-1">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-5 max-lg:grid-cols-1">
+
+        {/* Applications per week */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm">
+          <h3 className="m-0 mb-5 text-base font-extrabold text-gray-900">📅 Applications This Week</h3>
+          {weekData.length ? (
+            <MiniBarChart data={weekData} labelKey="label" valueKey="count" color="#48bb78" height={130} />
+          ) : <p className="text-sm text-gray-400 text-center py-6">No application data yet.</p>}
+        </div>
+
+        {/* Candidate skill distribution */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm">
+          <h3 className="m-0 mb-5 text-base font-extrabold text-gray-900">🛠 Applicant Skill Distribution</h3>
+          {skillData.length ? (
+            <div className="flex flex-col gap-3">
+              {skillData.map((s, i) => (
+                <div key={i} className="flex items-center gap-2.5">
+                  <div className="w-28 text-xs font-semibold text-gray-600 flex-shrink-0 truncate">{s.skill}</div>
+                  <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-700 min-w-[4px]"
+                      style={{ width: `${(s.count / (skillData[0].count || 1)) * 100}%`, background: SKILL_COLORS[i % SKILL_COLORS.length] }} />
+                  </div>
+                  <div className="w-5 text-right text-xs font-black text-gray-700">{s.count}</div>
+                </div>
+              ))}
+            </div>
+          ) : <p className="text-sm text-gray-400 text-center py-6">No applicant skill data yet.</p>}
+        </div>
+
+        {/* Experience distribution */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm">
+          <h3 className="m-0 mb-5 text-base font-extrabold text-gray-900">🧑‍💼 Applicant Experience</h3>
+          {expData.length ? (
+            <MiniBarChart data={expData} labelKey="label" valueKey="count" color="#805ad5" height={120} />
+          ) : <p className="text-sm text-gray-400 text-center py-6">No experience data yet.</p>}
+        </div>
+
+        {/* Top jobs */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm">
+          <h3 className="m-0 mb-4 text-base font-extrabold text-gray-900">🏆 Top Performing Jobs</h3>
+          <div className="space-y-3">
+            {[
+              { label: 'Most Applied', job: d.mostAppliedJob, icon: '📧', color: '#48bb78' },
+              { label: 'Most Viewed',  job: d.mostViewedJob,  icon: '👁',  color: '#667eea' },
+            ].filter(x => x.job).map(({ label, job, icon, color }) => (
+              <div key={label} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
+                  style={{ background: color + '20', color }}>
+                  {icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] font-black text-gray-400 uppercase">{label}</div>
+                  <div className="text-sm font-black text-gray-900 truncate">{job.title}</div>
+                  <div className="text-xs text-gray-500">{job.applications} applications</div>
+                </div>
+              </div>
+            ))}
+            {!d.mostAppliedJob && !d.mostViewedJob && (
+              <p className="text-sm text-gray-400 text-center py-4">Post jobs to see performance data.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const STATUS_CONFIG = {
   saved:                { label: 'Saved',              color: '#667eea', bg: '#ebf4ff' },
   applied:              { label: 'Applied',            color: '#f6ad55', bg: '#fffaf0' },
@@ -18,7 +283,13 @@ const WORK_MODES = ['Remote', 'Hybrid', 'Onsite'];
 const JOB_TYPES  = ['Full-time', 'Part-time', 'Contract', 'Internship', 'Freelance'];
 const DOMAINS    = ['Full Stack', 'Frontend', 'Backend', 'Data Science', 'Machine Learning', 'DevOps', 'Cloud', 'Mobile', 'UI/UX Design', 'Product Management', 'Cybersecurity', 'Blockchain', 'QA / Testing', 'Other'];
 
-const emptyJobForm = { title: '', company: '', description: '', salary: '', location: '', domain: '', skillsRequired: '', workMode: 'Onsite', jobType: 'Full-time', experienceRequired: '', deadline: '', companyDescription: '' };
+const emptyJobForm = {
+  title: '', company: '', description: '', salary: '', location: '', domain: '',
+  skillsRequired: '', workMode: 'Onsite', jobType: 'Full-time', experienceRequired: '',
+  deadline: '', companyDescription: '',
+  responsibilities: '', // newline-separated list
+  recruiterName: '', recruiterTitle: '', recruiterEmail: '',
+};
 
 // ── Tag chip ─────────────────────────────────────────────────────────────────
 const StatusBadge = ({ status }) => {
@@ -34,6 +305,7 @@ export default function RecruiterDashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab]       = useState('jobs');
   const [jobs, setJobs]                 = useState([]);
+  const [dashboardStats, setDashboardStats] = useState(null);
   const [applicants, setApplicants]     = useState([]);
   const [selectedJob, setSelectedJob]   = useState(null);
   const [loading, setLoading]           = useState(true);
@@ -58,8 +330,12 @@ export default function RecruiterDashboard() {
   const loadJobs = async () => {
     setLoading(true);
     try {
-      const data = await ApiService.getRecruiterJobs();
+      const [data, dashboard] = await Promise.all([
+        ApiService.getRecruiterJobs(),
+        ApiService.getRecruiterDashboardStats().catch(() => null),
+      ]);
       setJobs(data);
+      setDashboardStats(dashboard?.stats || null);
     } catch (err) {
       showToast('⚠️ ' + (err.message || 'Failed to load jobs'));
     } finally {
@@ -89,13 +365,23 @@ export default function RecruiterDashboard() {
   const openEdit   = (job) => {
     setEditingJob(job);
     setJobForm({
-      title: job.title, company: job.company, description: job.description,
-      salary: job.salary, location: job.location, domain: job.domain || '',
-      skillsRequired: (job.skillsRequired || job.requirements || []).join(', '),
-      workMode: job.workMode || 'Onsite', jobType: job.jobType || 'Full-time',
+      title:              job.title,
+      company:            job.company,
+      description:        job.description,
+      salary:             job.salary,
+      location:           job.location,
+      domain:             job.domain || '',
+      skillsRequired:     (job.skillsRequired || job.requirements || []).join(', '),
+      workMode:           job.workMode || 'Onsite',
+      jobType:            job.jobType  || 'Full-time',
       experienceRequired: job.experienceRequired || job.experience || '',
-      deadline: job.deadline ? job.deadline.split('T')[0] : '',
+      deadline:           job.deadline ? job.deadline.split('T')[0] : '',
       companyDescription: job.companyDescription || '',
+      // Phase 2 fields
+      responsibilities:   (job.responsibilities || []).join('\n'),
+      recruiterName:      job.recruiterName  || '',
+      recruiterTitle:     job.recruiterTitle || '',
+      recruiterEmail:     job.recruiterEmail || '',
     });
     setShowForm(true);
   };
@@ -107,6 +393,9 @@ export default function RecruiterDashboard() {
       const payload = {
         ...jobForm,
         skillsRequired: jobForm.skillsRequired.split(',').map(s => s.trim()).filter(Boolean),
+        responsibilities: jobForm.responsibilities
+          ? jobForm.responsibilities.split('\n').map(s => s.trim()).filter(Boolean)
+          : [],
         deadline: jobForm.deadline || null,
       };
       if (editingJob) {
@@ -160,6 +449,7 @@ export default function RecruiterDashboard() {
   const stats = {
     total: jobs.length,
     open:  jobs.filter(j => j.status === 'open').length,
+    closed: jobs.filter(j => j.status === 'closed').length,
     applicants: jobs.reduce((sum, j) => sum + (j.applicantCount || 0), 0),
   };
 
@@ -193,11 +483,14 @@ export default function RecruiterDashboard() {
         )}
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 px-6 pt-5 max-sm:grid-cols-1">
+        <div className="grid grid-cols-6 gap-4 px-6 pt-5 max-xl:grid-cols-3 max-sm:grid-cols-1">
           {[
-            { label: 'Total Jobs', value: stats.total, color: '#667eea', icon: '💼' },
-            { label: 'Open Jobs',  value: stats.open,  color: '#38a169', icon: '🟢' },
-            { label: 'Total Applications', value: stats.applicants, color: '#f6ad55', icon: '👥' },
+            { label: 'Active Jobs', value: dashboardStats?.activeJobs ?? stats.open, color: '#38a169', icon: '🟢' },
+            { label: 'Closed Jobs', value: dashboardStats?.closedJobs ?? stats.closed, color: '#e53e3e', icon: '🔒' },
+            { label: 'Applications', value: dashboardStats?.totalApplications ?? stats.applicants, color: '#f6ad55', icon: '👥' },
+            { label: 'Shortlisted', value: dashboardStats?.shortlistedCandidates ?? 0, color: '#3182ce', icon: '⭐' },
+            { label: 'Interviews', value: dashboardStats?.interviewsScheduled ?? 0, color: '#805ad5', icon: '📅' },
+            { label: 'Total Views', value: dashboardStats?.totalViews ?? 0, color: '#667eea', icon: '👁' },
           ].map((s, i) => (
             <div key={i} className="bg-white rounded-2xl p-5 shadow-[0_4px_15px_rgba(0,0,0,0.06)] text-center border-t-4" style={{ borderColor: s.color }}>
               <div className="text-3xl mb-1">{s.icon}</div>
@@ -208,10 +501,12 @@ export default function RecruiterDashboard() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 px-6 pt-5">
+        <div className="flex gap-2 px-6 pt-5 flex-wrap">
           {[
-            { id: 'jobs', label: '💼 My Jobs' },
-            { id: 'applicants', label: `👥 Applicants${selectedJob ? ` — ${selectedJob.title}` : ''}` },
+            { id: 'jobs',        label: '💼 My Jobs' },
+            { id: 'applicants',  label: `👥 Applicants${selectedJob ? ` — ${selectedJob.title}` : ''}` },
+            { id: 'performance', label: '📈 Job Performance' },
+            { id: 'analytics',   label: '📊 Analytics' },
           ].map(t => (
             <button key={t.id}
               className={`px-5 py-2.5 rounded-full text-sm font-semibold border-2 cursor-pointer transition-all ${activeTab === t.id ? 'text-white border-transparent shadow-[0_4px_12px_rgba(102,126,234,0.4)]' : 'bg-white text-gray-500 border-gray-200 hover:border-indigo-300'}`}
@@ -331,6 +626,15 @@ export default function RecruiterDashboard() {
               </div>
             )
           )}
+
+          {/* ── Job Performance ── */}
+          {activeTab === 'performance' && (
+            <JobPerformancePanel dashboardStats={dashboardStats} />
+          )}
+
+          {/* ── Analytics ── */}
+          {activeTab === 'analytics' && <RecruiterAnalyticsPanel />}
+
         </div>
       </div>
 
@@ -378,6 +682,39 @@ export default function RecruiterDashboard() {
               <div className="flex flex-col gap-1.5"><label className="text-[13px] font-bold text-gray-700">Required Skills <span className="text-gray-400 font-normal">(comma-separated)</span></label><input value={jobForm.skillsRequired} onChange={e => setJobForm(p => ({...p, skillsRequired: e.target.value}))} className={inputCls} placeholder="e.g. React, Node.js, MongoDB" /></div>
               <div className="flex flex-col gap-1.5"><label className="text-[13px] font-bold text-gray-700">Job Description *</label><textarea rows={4} value={jobForm.description} onChange={e => setJobForm(p => ({...p, description: e.target.value}))} required className={`${inputCls} resize-y min-h-[100px]`} placeholder="Describe the role, responsibilities..." /></div>
               <div className="flex flex-col gap-1.5"><label className="text-[13px] font-bold text-gray-700">Company Description</label><textarea rows={2} value={jobForm.companyDescription} onChange={e => setJobForm(p => ({...p, companyDescription: e.target.value}))} className={`${inputCls} resize-y`} placeholder="Brief company overview..." /></div>
+
+              {/* ── Phase 2: Responsibilities ── */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[13px] font-bold text-gray-700">
+                  Responsibilities <span className="text-gray-400 font-normal">(one per line)</span>
+                </label>
+                <textarea
+                  rows={4}
+                  value={jobForm.responsibilities}
+                  onChange={e => setJobForm(p => ({...p, responsibilities: e.target.value}))}
+                  className={`${inputCls} resize-y min-h-[90px]`}
+                  placeholder={"• Lead and mentor the engineering team\n• Build scalable backend services\n• Review code and architecture"}
+                />
+              </div>
+
+              {/* ── Phase 2: Recruiter Info ── */}
+              <div className="border-t border-gray-100 pt-4">
+                <p className="text-[13px] font-black text-gray-700 mb-3">👤 Recruiter Information <span className="font-normal text-gray-400">(optional — shown on job detail page)</span></p>
+                <div className="grid grid-cols-3 gap-4 max-sm:grid-cols-1">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[13px] font-bold text-gray-700">Recruiter Name</label>
+                    <input value={jobForm.recruiterName} onChange={e => setJobForm(p => ({...p, recruiterName: e.target.value}))} className={inputCls} placeholder="e.g. Priya Sharma" />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[13px] font-bold text-gray-700">Recruiter Title</label>
+                    <input value={jobForm.recruiterTitle} onChange={e => setJobForm(p => ({...p, recruiterTitle: e.target.value}))} className={inputCls} placeholder="e.g. HR Manager" />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[13px] font-bold text-gray-700">Recruiter Email</label>
+                    <input type="email" value={jobForm.recruiterEmail} onChange={e => setJobForm(p => ({...p, recruiterEmail: e.target.value}))} className={inputCls} placeholder="recruiter@company.com" />
+                  </div>
+                </div>
+              </div>
               <button type="submit" disabled={formLoading}
                 className="w-full py-3 text-white text-sm font-bold border-none rounded-xl cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
                 style={{ background: 'linear-gradient(135deg,#667eea,#764ba2)' }}>

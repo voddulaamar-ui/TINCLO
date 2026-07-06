@@ -3,6 +3,8 @@ import mongoose from 'mongoose';
 import JobView from '../models/JobView.js';
 import Job from '../models/Job.js';
 import User from '../models/User.js';
+import RecentView from '../models/RecentView.js';
+import AnalyticsEvent from '../models/AnalyticsEvent.js';
 
 const router = express.Router();
 
@@ -37,6 +39,12 @@ router.post('/', async (req, res) => {
       { $set: { viewedAt: new Date() } },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     ).populate('jobId');
+    await RecentView.findOneAndUpdate(
+      { userId, jobId },
+      { userId, jobId, viewedAt: new Date() },
+      { upsert: true, new: true },
+    ).catch(() => {});
+    await AnalyticsEvent.create({ userId, jobId, eventType: 'job_viewed' }).catch(() => {});
 
     res.status(201).json(view);
   } catch (error) {

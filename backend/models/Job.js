@@ -39,6 +39,12 @@ const jobSchema = new mongoose.Schema({
   postedBy:   { type: String, default: null }, // User.userId of recruiter
   isExternal: { type: Boolean, default: false },
 
+  // ── Phase 2: Responsibilities & recruiter info ───────────────────────────
+  responsibilities: { type: [String], default: [] }, // bullet-point list
+  recruiterName:    { type: String, default: '' },
+  recruiterTitle:   { type: String, default: '' },
+  recruiterEmail:   { type: String, default: '' },
+
   // ── Legacy / compat fields ────────────────────────────────────────────────
   source: {
     type: String,
@@ -63,5 +69,15 @@ jobSchema.pre('save', function (next) {
 
 // Full-text search index
 jobSchema.index({ title: 'text', company: 'text', description: 'text', domain: 'text' });
+
+// ── Phase 3: Performance indexes ────────────────────────────────────────────
+jobSchema.index({ status: 1, createdAt: -1 });           // job listing default sort
+jobSchema.index({ status: 1, domain: 1, createdAt: -1 });// filtered by domain
+jobSchema.index({ status: 1, location: 1, createdAt: -1 });// filtered by location
+jobSchema.index({ status: 1, company: 1 });               // company page jobs
+jobSchema.index({ status: 1, workMode: 1 });              // filter by remote/hybrid/onsite
+jobSchema.index({ postedBy: 1, createdAt: -1 });          // recruiter's own jobs
+jobSchema.index({ skillsRequired: 1 });                   // skill-based search
+jobSchema.index({ deadline: 1, status: 1 });              // expiry checker query
 
 export default mongoose.model('Job', jobSchema);

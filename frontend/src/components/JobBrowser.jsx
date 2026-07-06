@@ -244,7 +244,22 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
         return Array.from(map.values());
       });
     });
-    return () => SocketService.offNewJobs();
+    SocketService.onJobUpdated((payload) => {
+      const updated = payload.job;
+      if (!updated) return;
+      setAllJobs(prev => prev.map(job => String(job._id || job.id) === String(updated._id || updated.id) ? updated : job));
+    });
+    SocketService.onJobClosed((payload) => {
+      const closedId = String(payload.jobId || payload.job?._id || payload.job?.id || '');
+      if (!closedId) return;
+      setAllJobs(prev => prev.filter(job => String(job._id || job.id) !== closedId));
+      setJobIndex(0);
+    });
+    return () => {
+      SocketService.offNewJobs();
+      SocketService.offJobUpdated();
+      SocketService.offJobClosed();
+    };
   }, []); // eslint-disable-line
 
   // ── Re-apply filters + scoring whenever inputs change ─────────────────────
@@ -277,7 +292,11 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
     }
   }, [currentJob?._id, currentJob?.id]); // eslint-disable-line
 
-  const handleSearch = (e) => { e.preventDefault(); loadJobs(search || 'software developer', searchLoc || 'India'); };
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (currentUser?.id) ApiService.saveSearchHistory({ query: search || 'software developer', location: searchLoc || 'India' }).catch(() => {});
+    loadJobs(search || 'software developer', searchLoc || 'India');
+  };
   const handleLike   = () => { if (currentJob) { onMatch(currentJob); setJobIndex(nextUnliked(effectiveIndex + 1, jobs)); } };
   const handleSkip   = () => {
     if (currentJob) {
@@ -286,6 +305,10 @@ export const JobBrowser = ({ onMatch, onSkip, onNavigateToMatches, currentUser, 
       next.add(id);
       setSkippedIds(next);
       saveSkipped(userId, next);
+      // Record swiped_left analytics event (non-blocking — never delays the swipe)
+      if (currentUser?.id && id) {
+        ApiService.skipJob(id).catch(() => {});
+      }
     }
     onSkip();
     setJobIndex(nextUnliked(effectiveIndex + 1, jobs));

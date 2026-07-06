@@ -78,6 +78,30 @@ const SocketService = {
     }
   },
 
+  onJobUpdated(callback) {
+    if (socket) {
+      socket.on('jobs:updated', callback);
+    }
+  },
+
+  offJobUpdated() {
+    if (socket) {
+      socket.off('jobs:updated');
+    }
+  },
+
+  onJobClosed(callback) {
+    if (socket) {
+      socket.on('jobs:closed', callback);
+    }
+  },
+
+  offJobClosed() {
+    if (socket) {
+      socket.off('jobs:closed');
+    }
+  },
+
   /**
    * Subscribe to a preferences-matched notification.
    * Callback receives: { title, message, matchedJobs: Job[] }

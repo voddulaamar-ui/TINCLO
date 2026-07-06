@@ -15,6 +15,31 @@
     padding: 0;
   }
 
+  /* ── Accessibility: visible focus ring for keyboard navigation ─────────── */
+  *:focus-visible {
+    outline: 3px solid #667eea;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Skip link (screen reader + keyboard users) */
+  .skip-to-content {
+    position: absolute;
+    top: -100%;
+    left: 16px;
+    z-index: 9999;
+    padding: 12px 24px;
+    background: #667eea;
+    color: white;
+    font-weight: bold;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: top 0.2s;
+  }
+  .skip-to-content:focus {
+    top: 16px;
+  }
+
   body {
     min-width: 320px;
     min-height: 100vh;
@@ -69,7 +94,92 @@
   }
 }
 
-/* Respect user's motion preferences */
+/* ── Dark mode overrides ────────────────────────────────────────────────────── */
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark body {
+  background-color: #0f172a;
+  color: #e2e8f0;
+}
+
+/* Cards & panels */
+html.dark .bg-white          { background-color: #1e293b !important; }
+html.dark .bg-slate-50       { background-color: #0f172a !important; }
+html.dark .bg-gray-50        { background-color: #1e293b !important; }
+html.dark .bg-gray-100       { background-color: #334155 !important; }
+
+/* Borders */
+html.dark .border-gray-100   { border-color: #334155 !important; }
+html.dark .border-gray-200   { border-color: #475569 !important; }
+html.dark .border-gray-300   { border-color: #64748b !important; }
+
+/* Text */
+html.dark .text-gray-900     { color: #f1f5f9 !important; }
+html.dark .text-gray-800     { color: #e2e8f0 !important; }
+html.dark .text-gray-700     { color: #cbd5e1 !important; }
+html.dark .text-gray-600     { color: #94a3b8 !important; }
+html.dark .text-gray-500     { color: #64748b !important; }
+html.dark .text-gray-400     { color: #475569 !important; }
+
+/* Inputs */
+html.dark input,
+html.dark textarea,
+html.dark select {
+  background-color: #1e293b !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
+}
+html.dark input::placeholder,
+html.dark textarea::placeholder { color: #64748b; }
+
+/* Shadows lighten in dark mode */
+html.dark .shadow-sm,
+html.dark .shadow-md { box-shadow: 0 1px 6px rgba(0,0,0,0.4) !important; }
+
+/* Skeleton */
+html.dark .animate-pulse { background-color: #334155 !important; }
+
+/* ── Mobile/PWA utilities ─────────────────────────────────────────────────── */
+/* Safe area for bottom nav (iPhone notch) */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Add bottom padding to main content when mobile nav is visible */
+@media (max-width: 767px) {
+  main, .min-h-screen {
+    padding-bottom: 80px !important;
+  }
+}
+
+/* Touch target minimum 44px (WCAG) */
+@media (pointer: coarse) {
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Smooth momentum scrolling on iOS */
+.overflow-y-auto, .overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Disable text selection on interactive elements (mobile) */
+.select-none-touch {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* PWA standalone mode — hide browser chrome hints */
+@media (display-mode: standalone) {
+  .pwa-hide { display: none !important; }
+}
+
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

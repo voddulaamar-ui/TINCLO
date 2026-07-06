@@ -4,9 +4,51 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Job Swipe Matcher</title>
+
+    <!-- SEO Meta Tags -->
+    <title>TINCLO – Job Swipe Platform | Find Your Dream Job</title>
+    <meta name="description" content="TINCLO is a modern job swipe matching platform. Swipe right on jobs you love, get matched with top companies, and land your dream role." />
+    <meta name="keywords" content="jobs, careers, swipe, matching, hiring, recruiter, developer, remote jobs, TINCLO" />
+    <meta name="author" content="TINCLO" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- Open Graph / Social -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="TINCLO – Job Swipe Platform" />
+    <meta property="og:description" content="Swipe right on jobs you love. Get matched with top companies. Land your dream role." />
+    <meta property="og:url" content="https://tinclo.app" />
+    <meta property="og:image" content="https://tinclo.app/og-image.png" />
+    <meta property="og:site_name" content="TINCLO" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="TINCLO – Job Swipe Platform" />
+    <meta name="twitter:description" content="Swipe right on jobs you love. Get matched with top companies." />
+    <meta name="twitter:image" content="https://tinclo.app/og-image.png" />
+
+    <!-- Theme color for mobile browsers -->
+    <meta name="theme-color" content="#667eea" />
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Apple touch icon -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="TINCLO" />
+
+    <!-- Apply dark mode before first paint to avoid flash -->
+    <script>
+      try {
+        if (localStorage.getItem('tinclo_dark_mode') === 'true') {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
+    <a href="#main-content" class="skip-to-content">Skip to main content</a>
     <div id="root"></div>
     <script>
       // Unregister any stale service workers from previous builds

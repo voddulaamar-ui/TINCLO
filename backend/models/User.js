@@ -25,6 +25,17 @@ const userSchema = new mongoose.Schema({
   // ── Phase 1: Candidate profile fields ────────────────────────────────────
   profilePicture:    { type: String, default: null },   // URL
   resumeUrl:         { type: String, default: null },   // URL
+  resumeName:        { type: String, default: null },   // original filename
+  resumeUploadedAt:  { type: Date, default: null },     // upload timestamp
+
+  // Phase 4: Resume versioning
+  resumes: [{
+    url:        { type: String, required: true },
+    name:       { type: String, default: '' },
+    uploadedAt: { type: Date, default: Date.now },
+    isActive:   { type: Boolean, default: false },
+    parsedData: { type: mongoose.Schema.Types.Mixed, default: null },
+  }],
   skills:            { type: [String], default: [] },   // ['React', 'Node.js', ...]
   domain:            { type: String, default: '' },     // 'Full Stack', 'Data Science', ...
   experienceYears:   { type: Number, default: 0 },      // numeric years
@@ -38,6 +49,20 @@ const userSchema = new mongoose.Schema({
   // ── Meta ─────────────────────────────────────────────────────────────────
   isActive:  { type: Boolean, default: true },
   lastLogin: { type: Date, default: null },
+
+  // ── Phase 3: Email verification ──────────────────────────────────────────
+  isEmailVerified:       { type: Boolean, default: false },
+  emailVerificationToken:{ type: String, default: null },
+  emailVerificationExpires: { type: Date, default: null },
+
+  // ── Phase 3: Forgot password ─────────────────────────────────────────────
+  resetPasswordToken:   { type: String, default: null },
+  resetPasswordExpires: { type: Date, default: null },
+
+  // ── Phase 3: Brute force protection ──────────────────────────────────────
+  failedLoginAttempts:  { type: Number, default: 0 },
+  lockUntil:            { type: Date, default: null },
+
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });

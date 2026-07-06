@@ -9,7 +9,10 @@ import express from 'express';
 import Job from '../models/Job.js';
 import Match from '../models/Match.js';
 import User from '../models/User.js';
+import Notification from '../models/Notification.js';
+import CompanyFollow from '../models/CompanyFollow.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { ensureCompanyFromJob } from '../utils/companyUtils.js';
 
 const router = express.Router();
 
@@ -30,6 +33,7 @@ router.post('/jobs', requireRecruiter, async (req, res) => {
     title, company, description, salary, location,
     companyDescription, companyLogo, domain, skillsRequired,
     workMode, jobType, experienceRequired, deadline, tags,
+    responsibilities, recruiterName, recruiterTitle, recruiterEmail,
   } = req.body;
 
   if (!title || !company || !description || !location) {
@@ -54,6 +58,10 @@ router.post('/jobs', requireRecruiter, async (req, res) => {
       experience:         experienceRequired || '',
       deadline:           deadline ? new Date(deadline) : null,
       tags:               Array.isArray(tags) ? tags : [],
+      responsibilities:   Array.isArray(responsibilities) ? responsibilities : [],
+      recruiterName:      recruiterName  || '',
+      recruiterTitle:     recruiterTitle || '',
+      recruiterEmail:     recruiterEmail || '',
       status:             'open',
       isExternal:         false,
       source:             'Recruiter',
@@ -61,6 +69,7 @@ router.post('/jobs', requireRecruiter, async (req, res) => {
     });
 
     const saved = await job.save();
+    const companyProfile = await ensureCompanyFromJob(saved);
 
     // Notify online users via Socket.io — targeted to matching candidates
     const io          = req.app.get('io');
@@ -95,8 +104,17 @@ router.post('/jobs', requireRecruiter, async (req, res) => {
             const locationMatch = isRemote || userLocsLower.length === 0 || userLocsLower.some(ul => jobLocationLower.includes(ul) || ul.includes(jobLocationLower));
 
             if (skillMatch || domainMatch || locationMatch) {
+              const notification = await Notification.create({
+                userId: onlineUserId,
+                audience: 'candidate',
+                type: 'new_matching_job',
+                title: `New Job Match: ${saved.title}`,
+                message: `${saved.company} is hiring in ${saved.location}`,
+                icon: 'briefcase',
+                metadata: { jobId: saved._id, company: saved.company },
+              });
               io.to(socketId).emit('notification:receive', {
-                id:      Date.now(),
+                id:      notification._id,
                 type:    'new_job_match',
                 title:   `🆕 New Job Match: ${saved.title}`,
                 message: `${saved.company} is hiring in ${saved.location}${saved.matchScore ? ` · ${saved.matchScore}% match` : ''}`,
@@ -107,6 +125,23 @@ router.post('/jobs', requireRecruiter, async (req, res) => {
             }
           } catch { /* skip user if lookup fails */ }
         }
+      }
+
+      if (companyProfile && onlineUsers) {
+        const follows = await CompanyFollow.find({ companyId: companyProfile._id }).lean();
+        await Promise.all(follows.map(async (follow) => {
+          const notification = await Notification.create({
+            userId: follow.userId,
+            audience: 'candidate',
+            type: 'followed_company_job',
+            title: `${saved.company} posted a new job`,
+            message: `${saved.title} is open in ${saved.location}`,
+            icon: 'building',
+            metadata: { jobId: saved._id, companyId: companyProfile._id },
+          });
+          const targetSocket = onlineUsers.get(follow.userId);
+          if (targetSocket) io.to(targetSocket).emit('notification:receive', notification);
+        }));
       }
     }
 
@@ -166,6 +201,7 @@ router.put('/jobs/:id', requireRecruiter, async (req, res) => {
       'title', 'company', 'description', 'salary', 'location',
       'companyDescription', 'companyLogo', 'domain', 'skillsRequired',
       'workMode', 'jobType', 'experienceRequired', 'deadline', 'tags', 'status',
+      'responsibilities', 'recruiterName', 'recruiterTitle', 'recruiterEmail',
     ];
 
     for (const field of updatable) {
@@ -178,6 +214,9 @@ router.put('/jobs/:id', requireRecruiter, async (req, res) => {
     if (req.body.experienceRequired) job.experience = req.body.experienceRequired;
 
     const saved = await job.save();
+    await ensureCompanyFromJob(saved);
+    const io = req.app.get('io');
+    if (io) io.emit('jobs:updated', { job: saved, updatedAt: new Date().toISOString() });
     res.json(saved);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -213,6 +252,8 @@ router.patch('/jobs/:id/status', requireRecruiter, async (req, res) => {
     }
     job.status = status;
     await job.save();
+    const io = req.app.get('io');
+    if (io) io.emit(status === 'closed' ? 'jobs:closed' : 'jobs:updated', { job, jobId: job._id, updatedAt: new Date().toISOString() });
     res.json({ message: `Job ${status === 'open' ? 'reopened' : 'closed'}.`, job });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -275,12 +316,21 @@ router.patch('/applications/:matchId/status', requireRecruiter, async (req, res)
     match.statusUpdatedAt = new Date();
     if (status === 'applied') match.applied = true;
     await match.save();
+    const savedNotification = await Notification.create({
+      userId: match.userId,
+      audience: 'candidate',
+      type: 'application_update',
+      title: 'Application status updated',
+      message: `Your application for ${match.jobId?.title} is now ${status.replace('_', ' ')}`,
+      icon: 'clipboard',
+      metadata: { matchId: match._id, jobId: match.jobId?._id, status },
+    });
 
     // Notify the candidate via Socket.io
     const io = req.app.get('io');
     if (io) {
       const notif = {
-        id: Date.now(),
+        id: savedNotification._id,
         type: 'application_update',
         title: '📋 Application Status Updated',
         message: `Your application for ${match.jobId?.title} is now: ${status.replace('_', ' ')}`,

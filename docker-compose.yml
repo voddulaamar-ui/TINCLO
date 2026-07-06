@@ -1,0 +1,64 @@
+# ── TINCLO — Docker Compose (Development) ─────────────────────────────────────
+version: '3.9'
+
+services:
+  # ── Backend API ─────────────────────────────────────────────────────────────
+  backend:
+    build: ./backend
+    ports:
+      - "5002:5002"
+    environment:
+      - NODE_ENV=development
+      - PORT=5002
+      - MONGODB_URI=${MONGODB_URI}
+      - JWT_SECRET=${JWT_SECRET}
+      - FRONTEND_URL=http://localhost:5173
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5002/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ── Frontend ────────────────────────────────────────────────────────────────
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ── Redis (caching, queues, sessions) ───────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ── Worker (background jobs) ────────────────────────────────────────────────
+  worker:
+    build: ./backend
+    command: node workers/index.js
+    environment:
+      - NODE_ENV=development
+      - MONGODB_URI=${MONGODB_URI}
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+      - backend
+    restart: unless-stopped
+
+volumes:
+  redis_data:
