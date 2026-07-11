@@ -239,7 +239,7 @@ const MatchCard = ({ match, isSelected, onSelect, onStatusChange, onRequestDelet
 };
 
 // ── Main MatchesView ──────────────────────────────────────────────────────────
-export const MatchesView = ({ matches, onApply, onUndoApply, onNavigateToBrowser, currentUser }) => {
+export const MatchesView = ({ matches, onApply, onUndoApply, onNavigateToBrowser, onDeleteMatch, currentUser }) => {
   const [selectedId, setSelectedId]     = useState(null);
   const [filterStatus, setFilterStatus] = useState('all');
   const [deletingId, setDeletingId]     = useState(null);     // matchId pending confirm
@@ -271,19 +271,13 @@ export const MatchesView = ({ matches, onApply, onUndoApply, onNavigateToBrowser
     if (!matchId) return;
     setDeletingId(null);
 
-    // Find the job ID before we remove it
-    const removed = localMatches.find(m => m.id === matchId);
-    const removedJobId = removed?.job?.id || removed?.job?._id;
-
-    // Optimistic remove
+    // Optimistic remove from local view
     setLocalMatches(prev => prev.filter(m => m.id !== matchId));
-    if (removedJobId && selectedId === removedJobId) setSelectedId(null);
+    if (selectedId === matchId) setSelectedId(null);
 
-    try {
-      await ApiService.deleteMatch(matchId);
-    } catch (err) {
-      console.warn('Delete failed, restoring:', err.message);
-      setLocalMatches(matches); // restore on failure
+    // Use the parent handler which updates StateManager + localStorage
+    if (onDeleteMatch) {
+      try { await onDeleteMatch(matchId); } catch (e) { /* already handled */ }
     }
   };
 

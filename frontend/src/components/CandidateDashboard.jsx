@@ -77,7 +77,10 @@ export default function CandidateDashboard() {
         setTrending(Array.isArray(trendingJobs) ? trendingJobs : []);
         setHistory(Array.isArray(searches) ? searches : []);
       } catch (err) {
-        setError(err.message || 'Failed to load dashboard');
+        // Don't show token errors — auto-redirect handles those
+        if (!err.message?.includes('token') && !err.message?.includes('Session expired')) {
+          setError(err.message || 'Failed to load dashboard');
+        }
       } finally {
         setLoading(false);
       }

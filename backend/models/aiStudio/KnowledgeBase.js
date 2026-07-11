@@ -25,5 +25,4 @@ const knowledgeBaseSchema = new mongoose.Schema({
   createdBy:      { type: String, required: true },
 }, { timestamps: true });
 
-knowledgeBaseSchema.index({ organizationId: 1 });
 export default mongoose.model('KnowledgeBase', knowledgeBaseSchema);

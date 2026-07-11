@@ -190,6 +190,14 @@ export class StateManager {
       return localMatch;
     }
 
+    // Skip API sync for external jobs (non-MongoDB ObjectId)
+    const jobId = job.id || job._id;
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(jobId);
+    if (!isMongoId) {
+      console.log('⚠️ External job — match saved locally only');
+      return localMatch;
+    }
+
     try {
       const apiMatch = await this.apiService.createMatch(this.userId, job.id || job._id);
       const normalizedMatch = this.normalizeMatch(apiMatch);
@@ -202,6 +210,12 @@ export class StateManager {
       }
       console.log('✅ Match synced with API');
     } catch (error) {
+      // If it's a token/auth error, keep the match locally — don't remove it
+      if (error.message?.includes('token') || error.message?.includes('Access token') || error.message?.includes('Forbidden')) {
+        console.warn('⚠️ Auth issue — match saved locally only:', error.message);
+        return localMatch;
+      }
+
       console.warn('API sync failed, removing local match:', error.message);
 
       if (error.message.includes('Already matched')) {
@@ -210,10 +224,9 @@ export class StateManager {
         this._commitMatches();
         throw new Error('You have already saved this job.');
       }
-      this.state.matches = this.state.matches.filter(m => m.id !== localMatch.id);
-      this.state.currentJobIndex--;
-      this._commitMatches();
-      throw new Error(error.message || 'Unable to save this match to MongoDB.');
+      // For other errors, keep locally too — don't remove
+      console.warn('⚠️ Keeping match locally despite API error');
+      return localMatch;
     }
   }
 
@@ -294,13 +307,20 @@ export class StateManager {
     this.state.matches = this.state.matches.filter(m => m.id !== matchId);
     this._commitMatches();
 
+    // Only try API delete if it's a valid MongoDB ObjectId
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(matchId);
+    if (!isMongoId) return; // Local-only match, already removed
+
     try {
       await this.apiService.deleteMatch(matchId);
     } catch (error) {
+      // On token/auth errors, keep the delete (match is gone locally)
+      if (error.message?.includes('token') || error.message?.includes('Session expired') || error.message?.includes('Forbidden')) {
+        console.warn('⚠️ API unavailable — match removed locally');
+        return;
+      }
       console.error('Failed to delete match from API:', error);
-      this.state.matches = previous;
-      this._commitMatches();
-      throw new Error('Unable to remove saved job. Please try again.');
+      // For other errors, still keep the local delete — don't restore
     }
   }
 

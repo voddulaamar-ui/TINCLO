@@ -81,7 +81,9 @@ export const App = () => {
         }
         await stateManager.loadJobs();
       } catch (err) {
-        setError(err.message || 'Failed to load. Please refresh.');
+        if (!err.message?.includes('token') && !err.message?.includes('Access token')) {
+          setError(err.message || 'Failed to load. Please refresh.');
+        }
       } finally {
         setLoading(false);
       }
@@ -129,8 +131,11 @@ export const App = () => {
       await stateManager.addMatch(job);
       SocketService.emitJobLiked(currentUser.id, job.title, job.company);
     } catch (err) {
-      setError(err.message);
-      setTimeout(() => setError(null), 5000);
+      // Don't show error for token issues — auto-redirect handles it
+      if (!err.message?.includes('token')) {
+        setError(err.message);
+        setTimeout(() => setError(null), 5000);
+      }
     }
   };
 
@@ -156,7 +161,7 @@ export const App = () => {
   const handleDeleteMatch = async (matchId) => {
     if (!currentUser) { setShowAuthModal(true); return; }
     try { await stateManager.deleteMatch(matchId); }
-    catch (err) { setError(err.message); setTimeout(() => setError(null), 5000); }
+    catch (err) { /* silently handled — match already removed locally */ }
   };
 
   // ── Loading screen ────────────────────────────────────────────────────────
@@ -176,7 +181,7 @@ export const App = () => {
   }
 
   // ── Hard error screen ─────────────────────────────────────────────────────
-  if (error && !state.jobs.length) {
+  if (error && !state.jobs.length && !error.includes('token') && !error.includes('Access token')) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen px-5 text-center"
         style={{ background: 'linear-gradient(135deg,#ff6b6b 0%,#ee5a24 100%)' }}>

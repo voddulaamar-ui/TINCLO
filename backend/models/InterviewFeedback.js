@@ -27,7 +27,6 @@ const interviewFeedbackSchema = new mongoose.Schema({
   visibleToCandidate: { type: Boolean, default: false },
 }, { timestamps: true });
 
-interviewFeedbackSchema.index({ interviewId: 1 }, { unique: true });
 interviewFeedbackSchema.index({ candidateId: 1, createdAt: -1 });
 
 export default mongoose.model('InterviewFeedback', interviewFeedbackSchema);

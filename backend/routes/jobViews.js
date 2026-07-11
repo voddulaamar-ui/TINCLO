@@ -16,30 +16,29 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ message: 'userId and jobId are required' });
   }
 
-  // If jobId is not a valid ObjectId (e.g. external job), store as string reference
-  const isValidObjectId = mongoose.Types.ObjectId.isValid(jobId);
+  // Skip tracking for non-MongoDB job IDs (external jobs)
+  if (!mongoose.Types.ObjectId.isValid(jobId)) {
+    return res.status(200).json({ message: 'External job view noted', skipped: true });
+  }
 
   try {
-    // Only look up user/job if we have a valid ObjectId
-    if (isValidObjectId) {
-      const job = await Job.findById(jobId);
-      if (!job) return res.status(404).json({ message: 'Job not found' });
+    const job = await Job.findById(jobId);
+    if (!job) {
+      return res.status(200).json({ message: 'Job not found, view skipped', skipped: true });
     }
 
     const view = await JobView.findOneAndUpdate(
-      { userId, jobId: isValidObjectId ? jobId : undefined, externalJobId: !isValidObjectId ? jobId : undefined },
-      { $set: { userId, jobId: isValidObjectId ? jobId : undefined, externalJobId: !isValidObjectId ? jobId : undefined, viewedAt: new Date() } },
+      { userId, jobId },
+      { $set: { viewedAt: new Date() } },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
 
-    if (isValidObjectId) {
-      await RecentView.findOneAndUpdate(
-        { userId, jobId },
-        { userId, jobId, viewedAt: new Date() },
-        { upsert: true, new: true },
-      ).catch(() => {});
-    }
-    await AnalyticsEvent.create({ userId, jobId: isValidObjectId ? jobId : undefined, eventType: 'job_viewed', metadata: { rawJobId: jobId } }).catch(() => {});
+    await RecentView.findOneAndUpdate(
+      { userId, jobId },
+      { userId, jobId, viewedAt: new Date() },
+      { upsert: true, new: true },
+    ).catch(() => {});
+    await AnalyticsEvent.create({ userId, jobId, eventType: 'job_viewed' }).catch(() => {});
 
     res.status(201).json(view);
   } catch (error) {

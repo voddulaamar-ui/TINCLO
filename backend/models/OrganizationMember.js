@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
  * OrganizationMember — links a User to an Organization with a specific role.
  */
 const orgMemberSchema = new mongoose.Schema({
-  organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true, index: true },
+  organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true },
   userId:         { type: String, required: true, index: true },   // User.userId
   email:          { type: String, default: '' },
 

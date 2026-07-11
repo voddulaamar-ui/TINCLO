@@ -5,7 +5,12 @@
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5002/api';
 
+let isRedirecting = false;
+
 async function apiFetch(endpoint, options = {}) {
+  // If we're already redirecting to login, skip all further calls
+  if (isRedirecting) throw new Error('Session expired — redirecting to login');
+
   try {
     const token = localStorage.getItem('tinclo_token');
     const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
@@ -17,6 +22,20 @@ async function apiFetch(endpoint, options = {}) {
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({ message: 'Unknown error' }));
+
+      // Auto-logout on invalid/expired token
+      if ((response.status === 401 || response.status === 403) && (err.message?.includes('token') || err.message?.includes('Forbidden'))) {
+        localStorage.removeItem('tinclo_token');
+        localStorage.removeItem('tinclo_current_user');
+        localStorage.removeItem('tinclo_admin_session');
+        // Redirect only once
+        if (!isRedirecting) {
+          isRedirecting = true;
+          window.location.href = '/login';
+        }
+        throw new Error('Session expired');
+      }
+
       throw new Error(err.message || `HTTP ${response.status}: ${response.statusText}`);
     }
     return await response.json();
