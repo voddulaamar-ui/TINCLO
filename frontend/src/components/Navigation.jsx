@@ -51,7 +51,7 @@ export const Navigation = ({ currentView, matchCount, onNavigate, currentUser, o
 
   return (
     <>
-      <nav className="sticky top-0 z-[100] text-white shadow-[0_4px_20px_rgba(102,126,234,0.4)] bg-brand-gradient dark:!bg-[#1e293b] dark:!shadow-[0_2px_10px_rgba(0,0,0,0.5)]">
+      <nav className="sticky top-0 z-[100] text-white shadow-[0_4px_20px_rgba(102,126,234,0.4)] nav-gradient">
         <div className="max-w-[1280px] mx-auto px-5 flex justify-between items-center h-[64px] gap-6">
 
           {/* Logo */}

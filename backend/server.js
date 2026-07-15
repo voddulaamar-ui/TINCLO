@@ -367,7 +367,10 @@ app.use((req, res) => {
 app.use(globalErrorHandler);
 
 // ── MongoDB ──────────────────────────────────────────────────────────────────
-mongoose.connect(process.env.MONGODB_URI)
+mongoose.connect(process.env.MONGODB_URI, {
+  serverSelectionTimeoutMS: 10000,
+  socketTimeoutMS: 45000,
+})
   .then(() => {
     console.log('✅ Connected to MongoDB Atlas');
     startJobExpiryChecker();
@@ -376,6 +379,10 @@ mongoose.connect(process.env.MONGODB_URI)
     console.error('MongoDB connection error:', error.message);
     console.error('API server is still running. Database routes will return 503 until Atlas is reachable.');
   });
+
+// Auto-reconnect logging
+mongoose.connection.on('disconnected', () => console.warn('⚠️ MongoDB disconnected — will auto-reconnect'));
+mongoose.connection.on('reconnected', () => console.log('✅ MongoDB reconnected'));
 
 // ── Job expiry notification checker ──────────────────────────────────────────
 // Runs every 6 hours. Notifies recruiters when a job deadline is within 48 h.

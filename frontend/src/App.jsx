@@ -144,18 +144,18 @@ export const App = () => {
   const handleApply = async (matchId) => {
     if (!currentUser) { setShowAuthModal(true); return; }
     try { await stateManager.markAsApplied(matchId); }
-    catch (err) { setError(err.message); setTimeout(() => setError(null), 5000); }
+    catch (err) { if (!err.message?.includes('token') && !err.message?.includes('Session expired')) { setError(err.message); setTimeout(() => setError(null), 5000); } }
   };
 
   const handleUndoApply = async (matchId) => {
     try { await stateManager.undoApply(matchId); }
-    catch (err) { setError(err.message); setTimeout(() => setError(null), 5000); }
+    catch (err) { if (!err.message?.includes('token') && !err.message?.includes('Session expired')) { setError(err.message); setTimeout(() => setError(null), 5000); } }
   };
 
   const handleStatusChange = async (matchId, status) => {
     if (!currentUser) { setShowAuthModal(true); return; }
     try { await stateManager.updateMatchStatus(matchId, status); }
-    catch (err) { setError(err.message); setTimeout(() => setError(null), 5000); }
+    catch (err) { if (!err.message?.includes('token') && !err.message?.includes('Session expired')) { setError(err.message); setTimeout(() => setError(null), 5000); } }
   };
 
   const handleDeleteMatch = async (matchId) => {

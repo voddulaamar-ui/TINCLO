@@ -293,6 +293,11 @@ export class StateManager {
       this.state.matches[index] = this.normalizeMatch(apiMatch);
       this._commitMatches();
     } catch (error) {
+      // On token/auth errors, keep the local update
+      if (error.message?.includes('token') || error.message?.includes('Session expired') || error.message?.includes('Forbidden')) {
+        console.warn('⚠️ API unavailable — status updated locally');
+        return;
+      }
       this.state.matches[index] = previous;
       this._commitMatches();
       throw new Error(error.message || 'Unable to update application status.');

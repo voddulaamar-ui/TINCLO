@@ -23,12 +23,12 @@ async function apiFetch(endpoint, options = {}) {
     if (!response.ok) {
       const err = await response.json().catch(() => ({ message: 'Unknown error' }));
 
-      // Auto-logout on invalid/expired token
-      if ((response.status === 401 || response.status === 403) && (err.message?.includes('token') || err.message?.includes('Forbidden'))) {
+      // Auto-logout only on token-specific auth errors
+      if ((response.status === 401 || response.status === 403) && 
+          (err.message?.includes('token') || err.message?.includes('Access token') || err.message?.includes('jwt'))) {
         localStorage.removeItem('tinclo_token');
         localStorage.removeItem('tinclo_current_user');
         localStorage.removeItem('tinclo_admin_session');
-        // Redirect only once
         if (!isRedirecting) {
           isRedirecting = true;
           window.location.href = '/login';

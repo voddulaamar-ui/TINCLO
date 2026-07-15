@@ -83,6 +83,9 @@
   .bg-auth-gradient {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
   }
+  .nav-gradient {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  }
   .bg-brand-gradient {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   }
@@ -146,6 +149,10 @@ html.dark [style*="linear-gradient"][style*="#f0fff4"] {
 /* Force dark on pages with brand gradient backgrounds */
 html.dark .bg-auth-gradient {
   background: #0f172a !important;
+}
+
+html.dark .nav-gradient {
+  background: #1e293b !important;
 }
 
 /* Nuclear catch-all: force dark background on any min-h-screen with inline gradient */

@@ -269,7 +269,7 @@ const RecruiterAnalytics = () => {
   useEffect(() => {
     ApiService.getRecruiterAnalytics()
       .then(setD)
-      .catch(e => setError(e.message || 'Failed to load recruiter analytics'))
+      .catch(e => { if (!e.message?.includes('token') && !e.message?.includes('Session expired') && !e.message?.includes('Unavailable')) setError(e.message || 'Failed to load recruiter analytics'); })
       .finally(() => setLoading(false));
   }, []);
 

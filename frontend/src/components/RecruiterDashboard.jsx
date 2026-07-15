@@ -13,7 +13,7 @@ const JobPerformancePanel = ({ dashboardStats }) => {
     // Try the /dashboard/recruiter endpoint which returns jobPerformance array
     ApiService.getRecruiterDashboardStats()
       .then(d => setPerfData(d?.jobPerformance || []))
-      .catch(e => setError(e.message || 'Failed to load performance data'))
+      .catch(e => { if (!e.message?.includes('token') && !e.message?.includes('Session expired')) setError(e.message || 'Failed to load performance data'); })
       .finally(() => setLoading(false));
   }, []);
 
@@ -156,7 +156,7 @@ const RecruiterAnalyticsPanel = () => {
   useEffect(() => {
     ApiService.getRecruiterAnalytics()
       .then(setD)
-      .catch(e => setError(e.message || 'Failed to load analytics'))
+      .catch(e => { if (!e.message?.includes('token') && !e.message?.includes('Session expired')) setError(e.message || 'Failed to load analytics'); })
       .finally(() => setLoading(false));
   }, []);
 
@@ -337,7 +337,9 @@ export default function RecruiterDashboard() {
       setJobs(data);
       setDashboardStats(dashboard?.stats || null);
     } catch (err) {
-      showToast('⚠️ ' + (err.message || 'Failed to load jobs'));
+      if (!err.message?.includes('token') && !err.message?.includes('Session expired')) {
+        showToast('⚠️ ' + (err.message || 'Failed to load jobs'));
+      }
     } finally {
       setLoading(false);
     }
@@ -349,7 +351,9 @@ export default function RecruiterDashboard() {
       const data = await ApiService.getJobApplicants(jobId);
       setApplicants(data);
     } catch (err) {
-      showToast('⚠️ ' + (err.message || 'Failed to load applicants'));
+      if (!err.message?.includes('token') && !err.message?.includes('Session expired')) {
+        showToast('⚠️ ' + (err.message || 'Failed to load applicants'));
+      }
     } finally {
       setAppLoading(false);
     }
